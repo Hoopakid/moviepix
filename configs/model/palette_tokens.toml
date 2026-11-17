@@ -1,10 +1,22 @@
-# Filled in when the model is built.
+# Baseline B: copy by color. Each pixel picks transparent, a reference color, or a new color.
 model = "palette_tokens"
-dataset = "lpc64"
+dataset = "lpc32"
+
+[model_options]
+channels = [32, 64, 128, 128]
+cond_dim = 128
+dim = 64
+max_colors = 64
 
 [train]
-device = "auto"   # mps -> cuda -> cpu
-batch_size = 32
-steps = 50000
+device = "auto"
+amp = "bf16"
+batch_characters = 8
+per_character = 4
+steps = 20000
 lr = 3e-4
+warmup = 500
 seed = 1
+workers = 4
+log_every = 50
+val_every = 1000
