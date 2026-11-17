@@ -1,0 +1,19 @@
+name: Idea or request
+description: A feature, an art style to support, or a sprite set to add
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it helps
+  - type: input
+    id: license
+    attributes:
+      label: For sprite sets, the license and a link
+      placeholder: "CC0, https://..."

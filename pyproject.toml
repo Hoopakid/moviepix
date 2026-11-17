@@ -5,10 +5,25 @@ description = "A tiny open model that animates pixel-art sprites: one sprite in,
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
+authors = [{ name = "Hoopakid" }]
+keywords = ["pixel-art", "sprite", "animation", "generative", "local-ai", "pytorch", "onnx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "numpy>=2.0",
     "pillow>=10.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Hoopakid/moviepix"
+Issues = "https://github.com/Hoopakid/moviepix/issues"
 
 [project.optional-dependencies]
 # Building datasets from sources such as the LPC character art.

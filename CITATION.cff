@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use moviepix, please cite it."
+title: "moviepix: a tiny open model that animates pixel-art sprites"
+authors:
+  - alias: Hoopakid
+type: software
+license: Apache-2.0
+repository-code: "https://github.com/Hoopakid/moviepix"
+keywords: [pixel-art, sprite-animation, generative-model, local-ai, tiny-model]

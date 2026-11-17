@@ -1,0 +1,22 @@
+name: Bug report
+description: Something does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what happened instead. Paste error text if there is any.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        uv run moviepix-train configs/model/copy_animator.toml
+  - type: input
+    id: env
+    attributes:
+      label: Machine
+      placeholder: "e.g. MacBook Air M5 16 GB, macOS 27; or Ubuntu 24.04 + RTX 4090"

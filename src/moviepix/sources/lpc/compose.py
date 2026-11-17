@@ -28,7 +28,9 @@ PARTIAL_ITEM_PROB = 0.2
 # slot, definition folders, probability of wearing something from it.
 SLOTS = (
     ("head", ("head/heads/human",), 1.0),
-    ("eyes", ("head/eyes",), 0.7),
+    # LPC's eyes folder holds only cyclops eyes (normal eyes are part of the heads),
+    # so it stays a rare fantasy touch. v1 data used 0.7: 70% cyclopes (decision 0014).
+    ("eyes", ("head/eyes",), 0.02),
     ("hair", tuple(f"hair/{h}" for h in ("afro", "bob", "braids", "curly", "long", "short", "spiky", "xlong", "bald")), 0.9),
     ("beard", ("hair/beards", "hair/mustaches"), 0.15),
     ("torso", ("torso/shirts", "torso/dresses", "torso/torso_chainmail"), 0.9),
@@ -42,7 +44,10 @@ SLOTS = (
     ("hat", ("headwear/hats", "headwear/helmets", "headwear/coverings"), 0.3),
     ("neck", ("headwear/neck",), 0.1),
     ("weapon", ("weapons/sword", "weapons/blunt", "weapons/magic", "weapons/ranged", "tools"), 0.45),
-    ("shield", ("weapons/shields",), 0.12),
+    # Whole shields only: heater "paint"/"pattern"/"trim" items are layers that go on a
+    # heater wood base and float on their own (decision 0014).
+    ("shield", ("weapons/shields/shield_", "weapons/shields/engrailed", "weapons/shields/scutum",
+                "weapons/shields/heater/shield_heater_wood", "weapons/shields/heater/shield_heater_revised_wood"), 0.12),
 )
 # These may lack an action's sheet (a sword has no climb frames) and are then
 # simply not drawn. A missing sheet for anything else leaves that action out,
@@ -207,7 +212,8 @@ class Composer:
             if rng.random() >= prob:
                 continue
             pool = [it for it in self.cat.under(*folders, body_type=body_type, permissive=self.permissive)
-                    if set(it.required_tags) <= tags and it.id not in exclude]
+                    if set(it.required_tags) <= tags and it.id not in exclude
+                    and not it.id.endswith("_trim")]  # trims decorate another item; alone they float
             if slot not in OPTIONAL_SLOTS and rng.random() >= PARTIAL_ITEM_PROB:
                 full = [it for it in pool if self.coverage(it, body_type, head) >= self.coverage(body, body_type, None)]
                 pool = full or pool
