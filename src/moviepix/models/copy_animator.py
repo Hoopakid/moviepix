@@ -32,6 +32,7 @@ import math
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 
 from .blocks import Conditioning, CondUNet, FrameAttention, groups, masked_select_frames
 from .interface import Animator, Batch
@@ -49,8 +50,9 @@ def _pack(rgb: torch.Tensor) -> torch.Tensor:
 class CopyAnimator(Animator):
     def __init__(self, size: int = 64, channels=(32, 64, 128, 128), ref_channels=(32, 64, 128),
                  cond_dim: int = 128, dim: int = 64, frame_heads: int = 4,
-                 full_mask_prob: float = 0.25, steps: int = 8):
+                 full_mask_prob: float = 0.25, steps: int = 8, loss_chunk: int = 32):
         super().__init__()
+        self.loss_chunk = loss_chunk
         self.size = size
         self.steps = steps
         self.full_mask_prob = full_mask_prob
@@ -87,17 +89,60 @@ class CopyAnimator(Animator):
         colors = torch.gather(rgb, 1, order[..., None].expand(-1, -1, 3))
         return keys, colors, valid
 
-    def decode(self, reference, canvas, known, ref, b, t, cond, batch: int, t_max: int):
-        """Logits [N, S*S, 2+K] and new-color RGB [N, 3, S, S] for frames (b, t)."""
-        keys, _, valid = ref
+    def features(self, reference, canvas, known, b, t, cond, batch: int, t_max: int):
+        """Per output pixel: query [N, P, D], transparent/new logits [N, P, 2], new RGB [N, 3, S, S]."""
         x = torch.cat([reference[b], canvas, known], 1)
         hook = lambda h: self.frame_attn(h, b, t, batch, t_max)  # noqa: E731
         feat = self.dec_norm(self.dec_unet(x, cond, mid_hook=hook))
-        q = (self.to_query(feat) + self.pos).flatten(2).transpose(1, 2)  # [N, S*S, D]
-        copy = torch.einsum("npd,nkd->npk", q, keys[b]) * self.scale
-        copy = copy.masked_fill(~valid[b][:, None, :], float("-inf"))
-        special = self.special(feat).flatten(2).transpose(1, 2)
-        return torch.cat([special, copy], -1), torch.sigmoid(self.new_rgb(feat))
+        q = (self.to_query(feat) + self.pos).flatten(2).transpose(1, 2)
+        special = self.special(feat).flatten(2).transpose(1, 2).float()
+        return q, special, torch.sigmoid(self.new_rgb(feat))
+
+    def copy_logits(self, q, keys, valid):
+        """[n, P, D] x [n, K, D] -> [n, P, K], in float32 (they feed a log-sum-exp)."""
+        copy = torch.einsum("npd,nkd->npk", q.float(), keys.float()) * self.scale
+        return copy.masked_fill(~valid[:, None, :], float("-inf"))
+
+    def decode(self, reference, canvas, known, ref, b, t, cond, batch: int, t_max: int):
+        """Full logits [N, P, 2+K] and new-color RGB, for inference."""
+        keys, _, valid = ref
+        q, special, new_rgb = self.features(reference, canvas, known, b, t, cond, batch, t_max)
+        parts = [torch.cat([special[i:i + 32], self.copy_logits(q[i:i + 32], keys[b[i:i + 32]], valid[b[i:i + 32]])], -1)
+                 for i in range(0, len(b), 32)]
+        return torch.cat(parts, 0), new_rgb
+
+    def _choose(self, reference, canvas, known, ref, b, t, cond, batch, t_max, temperature, generator, chunk: int = 32):
+        """Each pixel's choice and its probability, computed a chunk of frames at a time
+        so the full [frames, pixels, reference pixels] table never exists at once."""
+        keys, _, valid = ref
+        q, special, new_rgb = self.features(reference, canvas, known, b, t, cond, batch, t_max)
+        choices, confs = [], []
+        for i in range(0, len(b), chunk):
+            j = slice(i, i + chunk)
+            logits = torch.cat([special[j], self.copy_logits(q[j], keys[b[j]], valid[b[j]])], -1)
+            probs = F.softmax(logits / temperature if temperature > 0 else logits, -1)
+            if temperature > 0:
+                n, p, c = probs.shape
+                choice = torch.multinomial(probs.reshape(n * p, c), 1, generator=generator).reshape(n, p)
+            else:
+                choice = probs.argmax(-1)
+            choices.append(choice)
+            confs.append(torch.gather(probs, -1, choice[..., None])[..., 0])
+        return torch.cat(choices), torch.cat(confs), new_rgb
+
+    def _chunk_nll(self, q, keys, valid, special, tgt_key, color_key, opaque, hidden):
+        """Summed loss over the hidden pixels of a chunk of frames.
+
+        nll = logsumexp(all choices) - logsumexp(correct choices); several reference
+        pixels may share the target color and all of them count as correct.
+        """
+        copy = self.copy_logits(q, keys, valid)
+        lse_all = torch.logsumexp(torch.cat([special, copy], -1), -1)
+        match = (tgt_key[..., None] == color_key[:, None, :]) & valid[:, None, :]
+        found = match.any(-1)
+        lse_copy = torch.logsumexp(copy.masked_fill(~match, float("-inf")), -1)
+        picked = torch.where(opaque, torch.where(found, lse_copy, special[..., NEW]), special[..., TRANSPARENT])
+        return ((lse_all - picked) * hidden).sum()
 
     @staticmethod
     def render(choice, new_rgb, colors_b):
@@ -130,17 +175,28 @@ class CopyAnimator(Animator):
 
         ref = self.encode_reference(ref_img)
         cond = self.cond(batch.action[b], batch.direction[b], t, n_frames[b])
-        logits, new_rgb = self.decode(ref_img, canvas, known, ref, b, t, cond, B, t_max)
-        logp = F.log_softmax(logits.float(), -1)  # [N, P, 2+K]
+        q, special, new_rgb = self.features(ref_img, canvas, known, b, t, cond, B, t_max)
 
-        _, colors, valid = ref
+        keys, colors, valid = ref
         tgt = target.flatten(2).transpose(1, 2)  # [N, P, 4]
         opaque = tgt[..., 3] > 0.5
-        match = (_pack(tgt[..., :3])[..., None] == _pack(colors)[b][:, None, :]) & valid[b][:, None, :]
-        found = match.any(-1)
-        copy_nll = -torch.logsumexp(logp[..., 2:].masked_fill(~match, float("-inf")), -1)
-        nll = torch.where(opaque, torch.where(found, copy_nll, -logp[..., NEW]), -logp[..., TRANSPARENT])
-        nll = (nll * hidden).sum() / hidden.sum().clamp(min=1)
+        tgt_key, color_key = _pack(tgt[..., :3]), _pack(colors)
+        hid = hidden.float()
+        # The [frames, pixels, reference pixels] table is the memory hog: build it a
+        # chunk of frames at a time and recompute it in the backward pass (checkpoint).
+        total = q.new_zeros((), dtype=torch.float32)
+        for i in range(0, N, self.loss_chunk):
+            j = slice(i, i + self.loss_chunk)
+            bj = b[j]
+            total = total + checkpoint(self._chunk_nll, q[j], keys[bj], valid[bj], special[j], tgt_key[j],
+                                       color_key[bj], opaque[j], hid[j], use_reentrant=False)
+        nll = total / hidden.sum().clamp(min=1)
+        with torch.no_grad():
+            found = torch.zeros_like(opaque)
+            for i in range(0, N, self.loss_chunk):
+                j = slice(i, i + self.loss_chunk)
+                bj = b[j]
+                found[j] = ((tgt_key[j][..., None] == color_key[bj][:, None, :]) & valid[bj][:, None, :]).any(-1)
 
         new_mask = (hidden & opaque & ~found).reshape(N, 1, S, S).float()
         new_l1 = ((new_rgb.float() - target[:, :3]).abs() * new_mask).sum() / (new_mask.sum() * 3).clamp(min=1)
@@ -170,14 +226,9 @@ class CopyAnimator(Animator):
         start_hidden = (~done).sum(1)  # [N]
 
         for s in range(1, steps + 1):
-            logits, new_rgb = self.decode(reference, cur.to(reference.dtype), done.float().reshape(N, 1, S, S).to(reference.dtype),
-                                          ref, b, t, cond, B, t_max)
-            probs = F.softmax(logits.float() / max(temperature, 1e-6), -1) if temperature > 0 else F.softmax(logits.float(), -1)
-            if temperature > 0:
-                choice = torch.multinomial(probs.reshape(N * P, -1), 1, generator=generator).reshape(N, P)
-            else:
-                choice = probs.argmax(-1)
-            conf = torch.gather(probs, -1, choice[..., None])[..., 0]
+            choice, conf, new_rgb = self._choose(reference, cur.to(reference.dtype),
+                                                 done.float().reshape(N, 1, S, S).to(reference.dtype),
+                                                 ref, b, t, cond, B, t_max, temperature, generator)
             if temperature > 0:  # a little randomness in which pixels go first
                 g = -torch.log(-torch.log(torch.rand(conf.shape, generator=generator, device=conf.device).clamp(1e-9, 1)))
                 conf = conf.log() + temperature * g

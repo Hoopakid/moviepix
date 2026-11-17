@@ -14,12 +14,15 @@ steps = 8                        # default decoding rounds; 1 = one-shot
 [train]
 device = "auto"
 amp = "bf16"
-batch_characters = 8
+# 16 examples per step so training fits comfortably on a 16 GB Mac (32 per step
+# needed ~7 GB). 40000 steps x 16 = the same 640k examples A and B saw.
+batch_characters = 4
 per_character = 4
-steps = 20000
+steps = 40000
 lr = 3e-4
-warmup = 500
+warmup = 1000
 seed = 1
-workers = 4
-log_every = 50
-val_every = 1000
+workers = 2
+log_every = 100
+val_every = 2000
+mps_memory_fraction = 0.6

@@ -46,6 +46,10 @@ DEFAULTS = {
     "steps": 20000, "lr": 3e-4, "warmup": 500, "weight_decay": 0.01, "grad_clip": 1.0,
     "seed": 1, "workers": 4, "log_every": 50, "val_every": 1000,
     "val_characters": 128, "val_per_character": 4, "actions": None,
+    # Apple GPUs share memory with the whole Mac. Cap what training may take
+    # (fraction of the GPU's recommended working set) so the Mac stays usable;
+    # over the cap, training stops with an out-of-memory error instead of swapping.
+    "mps_memory_fraction": 0.6,
 }
 
 
@@ -74,6 +78,8 @@ def validate(model, loader, device, amp_dtype, sample_path: Path | None = None) 
         add(totals, frame_metrics(pred, batch.target, batch.reference, batch.n_frames))
         if first is None:
             first = (batch, pred)
+    if device == "mps":
+        torch.mps.empty_cache()  # hand cached decoding memory back to the Mac
     if sample_path is not None and first is not None:
         b, p = first
         save_png(comparison_grid(b.reference, b.target, p, b.n_frames), sample_path)
@@ -107,6 +113,8 @@ def main(argv=None) -> None:
         tc["steps"] = args.steps
 
     device = best_device(tc["device"])
+    if device == "mps" and tc["mps_memory_fraction"]:
+        torch.mps.set_per_process_memory_fraction(tc["mps_memory_fraction"])
     amp_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(tc["amp"]) if device != "cpu" else None
     seed_everything(tc["seed"])
     data_root = args.built / cfg["dataset"]
@@ -172,6 +180,8 @@ def main(argv=None) -> None:
                        **{k: round(float(np.mean([r[k] for r in running])), 5) for k in running[0]},
                        "examples_per_s": round(seen / (now - t_last), 1),
                        "eta_min": round((tc["steps"] - step) / max(rate, 1e-9) / 60, 1)}
+                if device == "mps":
+                    rec["gpu_gb"] = round(torch.mps.driver_allocated_memory() / 1e9, 2)
                 print(json.dumps(rec), flush=True)
                 log.write(json.dumps(rec) + "\n"); log.flush()
                 t_last, seen, running = now, 0, []
