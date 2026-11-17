@@ -1,0 +1,8 @@
+# Data, datasets, checkpoints and run outputs stay out of git.
+/data/
+*.pt
+*.onnx
+__pycache__/
+.venv/
+.pytest_cache/
+.DS_Store

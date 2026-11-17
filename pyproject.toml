@@ -1,0 +1,37 @@
+[project]
+name = "moviepix"
+version = "0.0.1"
+description = "A tiny open model that animates pixel-art sprites: one sprite in, a walk, slash or spell cycle out."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+# Building datasets from sources such as the LPC character art.
+data = []
+# Training and evaluation (PyTorch with MPS on Apple Silicon, CUDA elsewhere).
+train = ["torch>=2.6"]
+# ONNX export for the browser demo.
+export = ["torch>=2.6", "onnx>=1.17", "onnxruntime>=1.20"]
+
+[project.scripts]
+moviepix-build = "moviepix.data.build:main"
+moviepix-train = "moviepix.train.loop:main"
+moviepix-eval = "moviepix.eval.report:main"
+moviepix-infer = "moviepix.infer:main"
+moviepix-export = "moviepix.export.onnx:main"
+moviepix-view = "moviepix.viz.dataset_viewer:main"
+
+[build-system]
+requires = ["uv_build>=0.8,<0.14"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

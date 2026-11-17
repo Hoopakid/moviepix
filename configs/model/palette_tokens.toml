@@ -1,0 +1,10 @@
+# Filled in when the model is built.
+model = "palette_tokens"
+dataset = "lpc64"
+
+[train]
+device = "auto"   # mps -> cuda -> cpu
+batch_size = 32
+steps = 50000
+lr = 3e-4
+seed = 1
