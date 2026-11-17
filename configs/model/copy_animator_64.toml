@@ -1,0 +1,30 @@
+# Main model at 64x64 on dataset v2. Batch and steps sized for an ~8-9 hour run
+# on a 16 GB MacBook Air (measured before launch; see the comment in [train]).
+model = "copy_animator"
+dataset = "lpc64v2"
+
+[model_options]
+channels = [32, 64, 128, 128]
+ref_channels = [32, 64, 128]
+cond_dim = 128
+dim = 64
+frame_heads = 4
+full_mask_prob = 0.25
+steps = 8
+loss_chunk = 16
+
+[train]
+device = "auto"
+amp = "bf16"
+batch_characters = 2       # set from the memory test
+per_character = 4
+steps = 40000              # set from the speed test
+lr = 3e-4
+warmup = 1000
+seed = 1
+workers = 2
+log_every = 100
+val_every = 2000
+val_characters = 64
+val_per_character = 4
+mps_memory_fraction = 0.6

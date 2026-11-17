@@ -40,7 +40,7 @@ local alternative:
 |---|---|
 | Dataset | ✅ 21,000 composed characters, 15 actions, 4 directions, 64x64 and 32x32 |
 | Baselines | ✅ trained and evaluated (below) |
-| Main model | 🔄 training |
+| Main model | ✅ 32x32 trained, beats both baselines · 🔄 64x64 training |
 | Browser demo, weights | ⏳ after the main model |
 
 ## How it works
@@ -73,17 +73,25 @@ More detail: [docs/architecture.md](docs/architecture.md) ·
 
 ## Results so far
 
-32x32, validation characters, 640k training examples each, trained on one MacBook Air.
+32x32, 1,024 validation examples, 640k training examples per model, each trained
+on one MacBook Air. "Unseen items" are characters wearing clothes, hair and
+weapons that no training character wears.
 
-| Model | Idea | Exact pixels | Silhouette IoU | Uses only sprite colors | Params | CPU, 8 frames |
-|---|---|---:|---:|---:|---:|---:|
-| A `unet_baseline` | paint each pixel | **0.506** | **0.989** | 0.565 | 2.6M | 11 ms |
-| B `palette_tokens` | pick a sprite color per pixel | 0.451 | 0.968 | 0.978 | 2.7M | 23 ms |
-| C `copy_animator` | copy sprite pixels by position | training | | | 4.4M | |
+| Model | Idea | Exact pixels | Exact, unseen items | Silhouette IoU | Uses only sprite colors | Params | CPU, 8 frames |
+|---|---|---:|---:|---:|---:|---:|---:|
+| A `unet_baseline` | paint each pixel | 0.506 | 0.489 | **0.989** | 0.565 | 2.6M | 11 ms |
+| B `palette_tokens` | pick a sprite color per pixel | 0.451 | 0.436 | 0.968 | 0.978 | 2.7M | 23 ms |
+| **C `copy_animator`**, one-shot | copy sprite pixels by position | **0.774** | **0.757** | 0.980 | **0.986** | 4.4M | 16 ms |
+| **C `copy_animator`**, 8 rounds | same, decided in rounds | 0.765 | 0.749 | 0.973 | **0.986** | 4.4M | 119 ms |
 
-What we learned: picking colors by value (B) keeps colors exact but swaps whole
-regions to the wrong color, so it loses to plain painting (A). That is why C
-copies by *position*. Full write-up in [decision 0013](docs/decisions/README.md).
+- **C gets about 77% of pixels exactly right, against 51% for the U-Net**, keeps the
+  sprite's own colors, and loses little on unseen items. All of it runs well under
+  the 200 ms CPU target.
+- Picking colors by value (B) keeps colors exact but swaps whole regions to the
+  wrong color, so it loses even to plain painting (A). Copying by *position* fixes that.
+- Open issues: C's silhouettes are still a little behind A's, and 8-round decoding
+  does not yet beat one-shot on these per-pixel scores. Details in
+  [docs/decisions](docs/decisions/README.md) (0013, 0015).
 
 ## Quick start
 
@@ -129,7 +137,7 @@ These are requirements for a release, measured by `moviepix-eval`
 
 - [x] **M1 Data**: LPC composer, permissive-license filter, 64 and 32 px builds, splits, credits, viewer
 - [x] **M2 Baselines**: loader, training with resume, metrics, baselines A and B
-- [ ] **M3 Main model**: `copy_animator` at 32 and 64 px, inference CLI
+- [ ] **M3 Main model**: `copy_animator` at 32 px ✅, 64 px, inference CLI
 - [ ] **M4 Other art styles**: augmentation, more CC0 sprite sets, out-of-style test set
 - [ ] **M5 Release**: ONNX export, browser demo, weights and dataset on Hugging Face, model card
 
