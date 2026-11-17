@@ -1,3 +1,3 @@
 """Models. Importing this package registers every built-in model."""
 
-from . import palette_tokens, unet_baseline  # noqa: F401
+from . import copy_animator, palette_tokens, unet_baseline  # noqa: F401

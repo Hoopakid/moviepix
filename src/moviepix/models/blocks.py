@@ -79,7 +79,7 @@ class UNetMixin:
             prev = ch
         return prev  # channels of the output features
 
-    def unet(self, x, c):
+    def unet(self, x, c, mid_hook=None):
         x = self.stem(x)
         skips = []
         for block, pool in zip(self.down, self.pool):
@@ -87,8 +87,49 @@ class UNetMixin:
             skips.append(x)
             x = pool(x)
         x = self.mid(x, c)
+        if mid_hook is not None:
+            x = mid_hook(x)
         for block in self.up:
             skip = skips.pop()
             x = F.interpolate(x, size=skip.shape[-2:], mode="nearest")
             x = block(torch.cat([x, skip], 1), c)
         return x
+
+
+class CondUNet(UNetMixin, nn.Module):
+    """A standalone conditioned U-Net (for models that need more than one)."""
+
+    def __init__(self, channels, cond_dim: int, in_ch: int = 4):
+        super().__init__()
+        self.out_channels = self.build_unet(channels, cond_dim, in_ch)
+
+    def forward(self, x, c, mid_hook=None):
+        return self.unet(x, c, mid_hook)
+
+
+class FrameAttention(nn.Module):
+    """Frames of the same animation attend to each other, per spatial position.
+
+    Input is the flat list of real frames [N, C, h, w] with their sample (b) and
+    frame (t) indices; padding frames are masked out.
+    """
+
+    def __init__(self, ch: int, heads: int = 4):
+        super().__init__()
+        self.norm = nn.LayerNorm(ch)
+        self.attn = nn.MultiheadAttention(ch, heads, batch_first=True)
+        nn.init.zeros_(self.attn.out_proj.weight)
+        nn.init.zeros_(self.attn.out_proj.bias)
+
+    def forward(self, x, b_idx, t_idx, batch: int, t_max: int):
+        N, C, h, w = x.shape
+        padded = x.new_zeros(batch, t_max, C, h, w)
+        padded[b_idx, t_idx] = x
+        seq = padded.permute(0, 3, 4, 1, 2).reshape(batch * h * w, t_max, C)
+        present = torch.zeros(batch, t_max, dtype=torch.bool, device=x.device)
+        present[b_idx, t_idx] = True
+        pad_mask = (~present)[:, None, :].expand(batch, h * w, t_max).reshape(batch * h * w, t_max)
+        y = self.norm(seq)
+        y, _ = self.attn(y, y, y, key_padding_mask=pad_mask, need_weights=False)
+        y = y.reshape(batch, h, w, t_max, C).permute(0, 3, 4, 1, 2)
+        return x + y[b_idx, t_idx]

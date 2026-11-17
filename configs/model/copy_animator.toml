@@ -1,10 +1,25 @@
-# Filled in when the model is built.
+# Main model: copy by position, iterative (MaskGIT-style) decoding.
 model = "copy_animator"
-dataset = "lpc64"
+dataset = "lpc32"
+
+[model_options]
+channels = [32, 64, 128, 128]   # frame decoder
+ref_channels = [32, 64, 128]    # reference encoder
+cond_dim = 128
+dim = 64                         # key/query size for copy attention
+frame_heads = 4
+full_mask_prob = 0.25            # share of training frames with nothing given (one-shot practice)
+steps = 8                        # default decoding rounds; 1 = one-shot
 
 [train]
-device = "auto"   # mps -> cuda -> cpu
-batch_size = 32
-steps = 50000
+device = "auto"
+amp = "bf16"
+batch_characters = 8
+per_character = 4
+steps = 20000
 lr = 3e-4
+warmup = 500
 seed = 1
+workers = 4
+log_every = 50
+val_every = 1000
