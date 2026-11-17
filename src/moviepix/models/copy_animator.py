@@ -111,10 +111,12 @@ class CopyAnimator(Animator):
                  for i in range(0, len(b), 32)]
         return torch.cat(parts, 0), new_rgb
 
-    def _choose(self, reference, canvas, known, ref, b, t, cond, batch, t_max, temperature, generator, chunk: int = 32):
+    def _choose(self, reference, canvas, known, ref, b, t, cond, batch, t_max, temperature, generator,
+                chunk: int | None = None):
         """Each pixel's choice and its probability, computed a chunk of frames at a time
         so the full [frames, pixels, reference pixels] table never exists at once."""
         keys, _, valid = ref
+        chunk = chunk or max(self.loss_chunk, 4)
         q, special, new_rgb = self.features(reference, canvas, known, b, t, cond, batch, t_max)
         choices, confs = [], []
         for i in range(0, len(b), chunk):

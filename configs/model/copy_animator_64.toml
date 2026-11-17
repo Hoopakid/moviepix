@@ -1,5 +1,6 @@
-# Main model at 64x64 on dataset v2. Batch and steps sized for an ~8-9 hour run
-# on a 16 GB MacBook Air (measured before launch; see the comment in [train]).
+# Main model at 64x64 on dataset v2, sized for an ~8.5 hour overnight run on a
+# 16 GB MacBook Air. Measured: 4 examples/step uses ~5.2 GB GPU memory at
+# ~5.3 examples/s (8 examples/step ran out of memory under the 0.6 cap).
 model = "copy_animator"
 dataset = "lpc64v2"
 
@@ -11,20 +12,20 @@ dim = 64
 frame_heads = 4
 full_mask_prob = 0.25
 steps = 8
-loss_chunk = 16
+loss_chunk = 4             # frames per chunk of the copy table (64 px: ~270 MB per table at 16)
 
 [train]
 device = "auto"
 amp = "bf16"
-batch_characters = 2       # set from the memory test
-per_character = 4
-steps = 40000              # set from the speed test
+batch_characters = 2
+per_character = 2
+steps = 36000              # ~8.5 h at ~5.3 examples/s, incl. validation
 lr = 3e-4
 warmup = 1000
 seed = 1
 workers = 2
 log_every = 100
-val_every = 2000
+val_every = 3000
 val_characters = 64
 val_per_character = 4
 mps_memory_fraction = 0.6
