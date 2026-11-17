@@ -10,7 +10,7 @@ from moviepix.data.schema import Sample
 
 
 def test_all_modules_import():
-    skip = {"moviepix.models.interface", "moviepix.utils.device"}  # need torch
+    skip = set()
     for mod in pkgutil.walk_packages(moviepix.__path__, "moviepix."):
         if mod.name not in skip:
             importlib.import_module(mod.name)

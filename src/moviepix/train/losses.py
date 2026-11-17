@@ -1,4 +1,2 @@
-"""Losses shared across models, all masked by n_frames.
-
-Planned in milestone M2; see docs/architecture.md.
-"""
+"""Losses shared across models. Each model's loss() lives with the model;
+helpers used by more than one model go here."""

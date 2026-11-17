@@ -1,10 +1,20 @@
-# Filled in when the model is built.
+# Baseline A: per-frame U-Net regression. Expected to blur; it is the bar to beat.
 model = "unet_baseline"
-dataset = "lpc64"
+dataset = "lpc32"          # start at 32x32: about 4x faster; switch to lpc64 later
+
+[model_options]
+channels = [32, 64, 128, 128]
+cond_dim = 128
 
 [train]
-device = "auto"   # mps -> cuda -> cpu
-batch_size = 32
-steps = 50000
+device = "auto"            # mps -> cuda -> cpu
+amp = "bf16"
+batch_characters = 8       # characters per step
+per_character = 4          # examples drawn from each, so 32 examples per step
+steps = 20000
 lr = 3e-4
+warmup = 500
 seed = 1
+workers = 4
+log_every = 50
+val_every = 1000
