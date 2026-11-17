@@ -10,3 +10,7 @@ One short note per decision that shapes the project. Add new ones with the next 
 | 0004 | **All LPC actions** (15), variable frame counts | Adding actions later only costs data |
 | 0005 | **PyTorch with MPS**, export to ONNX | Simple path to a browser demo; same stack as tiny-voca |
 | 0006 | Name: **moviepix** | Chosen by the maintainer |
+| 0007 | Child body left out for now | It lacks 9 of 15 actions and has almost no permissively licensed clothing |
+| 0008 | Datasets stored as one indexed-color PNG per character (all actions) | Lossless, ~100 KB per character instead of ~250 KB; max 65 colors seen |
+| 0009 | 32x32 = majority color per 2x2 block, ties to the local average color | "Darkest wins" turned faces dark; this keeps fills and only uses original colors |
+| 0010 | **Local-first** is a hard requirement; see [local-first.md](../local-first.md) | The project's point is AI that runs on ordinary computers |

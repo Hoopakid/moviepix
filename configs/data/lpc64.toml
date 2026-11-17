@@ -2,16 +2,15 @@
 name = "lpc64"
 source = "lpc"
 size = 64
-characters = 20000
+characters = 20000              # train + validation + test
 seed = 1
-licenses = "permissive"        # CC0 / CC-BY / OGA-BY only; see docs/decisions/0002
-actions = "all"                 # or a list, e.g. ["walk", "idle"]
-reference = "first_frame"      # which still the model is given
+licenses = "permissive"         # CC0 / CC-BY / OGA-BY only; see docs/decisions 0002
 
 [splits]
 validation = 0.03
 test = 0.03
-unseen_items = 0.05             # fraction of items held out entirely
+unseen_items = 0.05             # fraction of items no train character wears
+unseen_characters = 1000        # characters that each wear at least one of them
 
 [source_options]
 root = "data/raw/lpc"

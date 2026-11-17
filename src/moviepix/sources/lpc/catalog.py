@@ -34,7 +34,7 @@ class Layer:
     paths: dict[str, str]  # body type -> folder under spritesheets/
 
 
-@dataclass
+@dataclass(eq=False)  # hashed by identity, so it can key caches
 class Item:
     id: str  # definition path relative to sheet_definitions, without .json
     name: str

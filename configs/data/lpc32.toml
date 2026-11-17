@@ -1,17 +1,5 @@
-# LPC characters at 64x64 renders, downscaled to 32x32 (data/resize.py).
+# The lpc64 characters, downscaled to 32x32 (data/resize.py).
+# Same characters and splits as lpc64; build lpc64 first.
 name = "lpc32"
-source = "lpc"
+derive_from = "lpc64"
 size = 32
-characters = 20000
-seed = 1
-licenses = "permissive"        # CC0 / CC-BY / OGA-BY only; see docs/decisions/0002
-actions = "all"                 # or a list, e.g. ["walk", "idle"]
-reference = "first_frame"      # which still the model is given
-
-[splits]
-validation = 0.03
-test = 0.03
-unseen_items = 0.05             # fraction of items held out entirely
-
-[source_options]
-root = "data/raw/lpc"
