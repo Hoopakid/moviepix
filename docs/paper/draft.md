@@ -30,8 +30,12 @@ recipes, training logs and costs are public. **[TODO: final numbers after phase 
 - Goal: an open model small enough for a laptop or a browser, that keeps the artist's
   own pixels, trained only on permissively licensed art with full credits.
 - Contributions:
-  1. A copy-based formulation of sprite animation (per-pixel pointer to the reference)
-     trained with a marginal-likelihood loss over all same-coloured source pixels.
+  1. Per-pixel reference-pointer prediction as the *generative* output space for
+     single-image sprite animation: from one still sprite plus an action and direction
+     code, every pixel of an unobserved frame selects {transparent, new colour, a
+     reference pixel}, which makes the output palette-exact by construction. It is
+     trained with the colour-marginal likelihood of Vondrick et al. (2018), who used it
+     for colour propagation with the target frame observed; we use it for synthesis.
   2. A controlled comparison against colour regression and palette classification at
      equal data and compute (Section 5).
   3. An analysis of iterative masked decoding for this task: why confidence ordering

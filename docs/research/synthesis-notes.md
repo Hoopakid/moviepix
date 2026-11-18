@@ -83,3 +83,73 @@
   frames; (4) CC0 3D renders (Quaternius + CMU mocap) later; (5) skeleton/part conditioning deferred.
 - Evaluation: separate splits (LPC held-out parts / near out-of-style / far out-of-style),
   report worst pack, align by pivot and animation phase, ±1 px tolerant metrics, no FID.
+
+## Wave 2 — verification (received)
+- 11/13 references fully verified, 2 with nuances; none fabricated. Corrections recorded in
+  wave2-verification.md (PixelBench DOES include animation tasks; Alonso & Patow 280 =
+  whole dataset, "directional" = temporal; Tessera-small is a still-image generator;
+  GDC 64% = visual + technical artists; Token-Critic worsens IS at 256 px).
+- **Novelty = partially novel.** Our colour-marginal loss equals Vondrick et al. 2018
+  ("Tracking Emerges by Colorizing Videos") cross-entropy over attention-weighted
+  reference colours — but there the target frame is observed (grayscale queries). New:
+  pointer over reference pixels as the GENERATIVE output space for an unobserved frame
+  from one still + action/direction; {transparent, new, pointer} vocabulary (palette-exact
+  by construction); combined with masked training/self-conditioning/iterative decoding;
+  application to sprite animation. Paper must cite Vondrick 2018 for the loss and not
+  claim novelty for copying, the loss, or masked decoding.
+
+## Wave 2 — licensing (received; not legal advice)
+- **Release blocker (data provenance):** our permissive filter trusts the LPC generator's
+  per-file credit metadata. Upstream OGA pages for 26 of 81 linked packs show NO
+  permissive option on the page (often per-file options live in a CREDITS file inside the
+  zip, e.g. lpc-hair). 90 of 370 credit rows link only to such pages, incl. heavily used
+  heads/bases (BenCreating: page says CC-BY-SA/GPL; he commented 2026-07-08 he has "no
+  problem licensing these ... under OGA-BY", except some animal heads) and the legion torso.
+  → Before ANY release of weights/dataset: script-verify those rows against each pack's
+  internal credits file; save evidence; add license_used/license_url/title/modifications
+  columns to CREDITS.csv; fix assets/CREDITS.md rows (missing URLs, version, licence links).
+- Choosing a permissive option of multi-licensed work is valid (OGA + CC FAQs).
+- Weights: courts split (UK Getty v Stability: weights not copies; DE GEMA v OpenAI:
+  memorised works reproduced). Practice: ship credits with the weights + run a
+  memorisation check (tiny model on repetitive parts).
+- Outputs from users' own sprites: low risk; README must say users need rights to inputs.
+- CC-BY-SA art for evaluation only: fine; keep separate, CI check it never enters training.
+- GPL: reading data files triggers nothing; don't commit generator code/JSON.
+- HF: weights `apache-2.0` + NOTICE + credits; dataset `license: other` + LICENSE.md.
+
+## Wave 2 — out-of-style packs (received)
+- Measured 7 packs (downloads in data/raw/ooS/, licences re-read 2026-11-18): Puny (CC0,
+  32×32, 8 dirs), Ninja Adventure (CC0 repo pinned e8674a0, 16×16, 4 dirs), Chasersgaming
+  Knight/Ranger NES + Ranger GB (CC0, 16×24, 3–4 colours), Antifarea (CC-BY 3.0, 16×18,
+  colour-key bg), Bit Era (CC0, 3 colours, 20 recolours), Calciumtrice (CC-BY 3.0, 32×32
+  side view). Slicing specs + placement rules (feet pivot, integer scaling) in
+  wave2-oos-packs.md. LuizMelo not downloaded (the agent's itch.io download was blocked
+  by the permission system — left for the user to decide).
+- Problems: frame counts never match LPC (3–4-frame walks vs 9) → phase-aligned scoring
+  + frame-count-free metrics; single-frame actions are pose checks only; mirrored or
+  missing directions reported separately.
+
+## Wave 3 — own experiments, batch 1 (docs/research/wave3-eval-batch-1.log)
+### Colour-aggregated decoding (decide by colour) — decoding-only, all checkpoints
+| model | exact pixel→colour | IoU | detail recall | detail precision |
+|---|---|---|---|---|
+| C32 (v1) | 0.792 → **0.802** | 0.981 → 0.983 | 0.809 → 0.802 | 0.820 → 0.850 |
+| C32 v2 new (α+sc) | 0.790 → **0.798** | 0.974 = | 0.813 → 0.807 | 0.793 → 0.824 |
+| C64 (v2) | 0.754 → **0.771** | 0.955 → 0.963 | 0.830 → 0.808 | 0.836 → 0.876 |
+| C64 sc (warm) | 0.798 → **0.806** | 0.964 = | 0.861 → 0.842 | 0.835 → 0.876 |
+- +0.8 to +1.7 points exact everywhere, silhouettes same or better, details more precise
+  but slightly fewer (recall −0.6 to −2 pts). Default stays ON. Slower at 64 px (25 s vs
+  10 s for 256 ex.: per-call colour grouping loop) → optimise (cache groups per reference).
+- Rounds still ≈ one-shot (consistent with theory: argmax optimal for per-pixel metrics).
+
+### First out-of-style walk test (188 samples, 5 packs; best-match per truth step frame)
+- **Generalisation is weak — the key Phase 2 finding.** In-style (LPC) the models beat the
+  "repeat the still sprite" baseline by +16 to +22 points exact. Out of style:
+  Puny (chibi 32 px): all models WORSE than the baseline (−5.5 to −14.7 pts);
+  Ninja/Antifarea: modest gains (+4 to +13 pts) but silhouette IoU below baseline;
+  Knight/Ranger (16×24, ×1 in a 64 canvas): 64 px models' silhouettes collapse
+  (IoU 0.26–0.62 vs 0.86–0.89 baseline) — they likely draw LPC-sized bodies.
+- 32 px models generalise better than 64 px ones on small sprites (sprites at ×1 in
+  32 px are closer in size to LPC-32 characters).
+- Caveat: tiny-sprite walks move few pixels, so the baseline is strong; packs have only
+  3–4-frame walks. Still, the direction is clear: Phase 2 (augmentation + varied data) is essential.
