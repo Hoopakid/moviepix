@@ -95,3 +95,20 @@ def test_copy_animator_alpha_head_and_self_conditioning():
     model.eval()
     out = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=2)
     assert out.shape == (3, 13, 4, 32, 32) and set(out[:, :, 3].unique().tolist()) <= {0.0, 1.0}
+
+
+def test_color_aggregation_prefers_a_spread_colour_over_transparent():
+    # one colour spread over many reference pixels must beat a single larger slot
+    model = build("copy_animator", size=32).eval()
+    ref = torch.zeros(1, 4, 32, 32)
+    ref[0, :3, :10, :10] = 0.5
+    ref[0, 3, :10, :10] = 1  # 100 pixels, one colour
+    keys, colors, valid = model.encode_reference(ref)
+    ids, rep, cvalid = model.color_groups((keys, colors, valid))
+    assert int(cvalid.sum()) == 1 and int(ids[valid].max()) == 0
+    probs = torch.full((1, 1, 2 + valid.shape[1]), 0.0)
+    probs[..., 0] = 0.3                      # transparent
+    probs[..., 2:] = 0.7 / valid.shape[1]    # the colour, spread
+    agg = probs.new_zeros(1, 1, 2).scatter_add_(-1, ids[:, None, :], probs[..., 2:])
+    assert float(agg[..., 0]) > 0.3          # aggregated colour wins
+    assert int(probs.argmax(-1)) == 0        # per-pixel argmax would pick transparent

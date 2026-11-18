@@ -121,13 +121,45 @@ class CopyAnimator(Animator):
                  for i in range(0, len(b), 32)]
         return torch.cat(parts, 0), new_rgb
 
+    @staticmethod
+    def color_groups(ref):
+        """Group the reference keys by colour: (colour id per key [B, K], one
+        representative key per colour [B, C], valid colours [B, C])."""
+        _, colors, valid = ref
+        B, K = valid.shape
+        packed = _pack(colors)
+        ids = torch.zeros(B, K, dtype=torch.long, device=valid.device)
+        reps, counts = [], []
+        for i in range(B):
+            u, inv = torch.unique(packed[i][valid[i]], return_inverse=True)
+            ids[i, valid[i]] = inv
+            first = torch.full((len(u),), K, dtype=torch.long, device=valid.device)
+            pos = torch.nonzero(valid[i]).flatten()
+            first.scatter_reduce_(0, inv, pos, reduce="amin")
+            reps.append(first)
+            counts.append(len(u))
+        C = max(max(counts), 1)
+        rep = torch.zeros(B, C, dtype=torch.long, device=valid.device)
+        cvalid = torch.zeros(B, C, dtype=torch.bool, device=valid.device)
+        for i, r in enumerate(reps):
+            rep[i, :len(r)] = r
+            cvalid[i, :len(r)] = True
+        ids = torch.where(valid, ids, torch.full_like(ids, C))  # invalid keys go to a dump column
+        return ids, rep, cvalid
+
     def _choose(self, reference, canvas, known, ref, b, t, cond, batch, t_max, temperature, generator,
-                chunk: int | None = None):
+                chunk: int | None = None, aggregate: bool = True):
         """Each pixel's choice and its probability, computed a chunk of frames at a time
-        so the full [frames, pixels, reference pixels] table never exists at once."""
+        so the full [frames, pixels, reference pixels] table never exists at once.
+
+        aggregate=True decides by COLOUR: the probabilities of all reference pixels with
+        the same colour are summed before choosing, which is what the training loss
+        optimises. Deciding per reference pixel (aggregate=False) splits a colour's
+        probability over its many pixels and wrongly favours "transparent"/"new"."""
         keys, _, valid = ref
         chunk = chunk or max(self.loss_chunk, 4)
         q, special, new_rgb, alpha = self.features(reference, canvas, known, b, t, cond, batch, t_max)
+        groups = self.color_groups(ref) if aggregate else None
         choices, confs = [], []
         for i in range(0, len(b), chunk):
             j = slice(i, i + chunk)
@@ -135,12 +167,25 @@ class CopyAnimator(Animator):
             if alpha is not None:
                 logits[..., TRANSPARENT] = float("-inf")  # colour choice only; alpha decides "drawn or not"
             probs = F.softmax(logits / temperature if temperature > 0 else logits, -1)
-            if temperature > 0:
-                n, p, c = probs.shape
-                choice = torch.multinomial(probs.reshape(n * p, c), 1, generator=generator).reshape(n, p)
+            if groups is not None:
+                ids, rep, cvalid = groups
+                n, p, _ = probs.shape
+                C = rep.shape[1]
+                agg = probs.new_zeros(n, p, C + 1).scatter_add_(-1, ids[b[j]][:, None, :].expand(n, p, -1), probs[..., 2:])
+                classes = torch.cat([probs[..., :2], agg[..., :C]], -1)
             else:
-                choice = probs.argmax(-1)
-            conf = torch.gather(probs, -1, choice[..., None])[..., 0]
+                classes = probs
+            if temperature > 0:
+                n, p, c = classes.shape
+                pick = torch.multinomial(classes.reshape(n * p, c), 1, generator=generator).reshape(n, p)
+            else:
+                pick = classes.argmax(-1)
+            conf = torch.gather(classes, -1, pick[..., None])[..., 0]
+            if groups is not None:  # map a chosen colour back to one reference pixel of that colour
+                key = torch.gather(rep[b[j]], 1, (pick - 2).clamp(min=0))
+                choice = torch.where(pick >= 2, key + 2, pick)
+            else:
+                choice = pick
             if alpha is not None:
                 p_on = torch.sigmoid(alpha[j])
                 if temperature > 0:
@@ -277,7 +322,8 @@ class CopyAnimator(Animator):
     @torch.no_grad()
     def generate(self, reference, action, direction, n_frames, text=None, steps: int | None = None,
                  temperature: float = 0.0, generator: torch.Generator | None = None,
-                 canvas: torch.Tensor | None = None, known: torch.Tensor | None = None, order: str = "random"):
+                 canvas: torch.Tensor | None = None, known: torch.Tensor | None = None, order: str = "random",
+                 aggregate: bool = True):
         """Decode in `steps` rounds (1 = one-shot). Optional canvas/known [B, T, ...]
         fix some pixels in advance (editing).
 
@@ -309,7 +355,8 @@ class CopyAnimator(Animator):
         for s in range(1, steps + 1):
             choice, conf, new_rgb = self._choose(reference, cur.to(reference.dtype),
                                                  done.float().reshape(N, 1, S, S).to(reference.dtype),
-                                                 ref, b, t, cond, B, t_max, temperature, generator)
+                                                 ref, b, t, cond, B, t_max, temperature, generator,
+                                                 aggregate=aggregate)
             if order == "random":
                 score = torch.rand(conf.shape, generator=generator, device=conf.device) if generator is not None \
                     else torch.rand(conf.shape, device=conf.device)
