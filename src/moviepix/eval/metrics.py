@@ -11,6 +11,10 @@ stray_excess     extra stray pixels per frame versus the truth (an opaque pixel 
                  no opaque pixel among its 8 neighbours): 0 is ideal
 speckle_excess   extra speckles per frame versus the truth (an opaque pixel whose
                  colour matches none of its 4 opaque neighbours: the "torn" look): 0 is ideal
+detail_recall    share of the truth's speckles (1-pixel details: eye highlights, buttons)
+                 that the prediction reproduces in the same colour within +-1 pixel
+detail_precision share of the prediction's speckles that match a same-coloured truth
+                 pixel within +-1 pixel (invented details lower it)
 """
 
 from __future__ import annotations
@@ -19,6 +23,36 @@ import torch
 from torch.nn import functional as F
 
 from moviepix.models.blocks import masked_select_frames
+
+
+def _keys_and_speckles(frames: torch.Tensor):
+    a = frames[:, 3] > 0.5
+    key = (frames[:, :3] * 255).round()
+    key = torch.where(a, key[:, 0] * 65536 + key[:, 1] * 256 + key[:, 2], torch.full_like(key[:, 0], -1.0))
+    same_any = torch.zeros_like(a)
+    has_nb = torch.zeros_like(a)
+    for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+        k2 = torch.roll(key, (dy, dx), (1, 2))
+        o2 = torch.roll(a, (dy, dx), (1, 2))
+        has_nb |= o2
+        same_any |= o2 & (k2 == key)
+    return key, a & has_nb & ~same_any
+
+
+def _near_same_colour(src_key, src_mask, other_key):
+    """For each masked pixel of src: does other have the same colour within the 3x3 neighbourhood?"""
+    hit = torch.zeros_like(src_mask)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            hit |= torch.roll(other_key, (dy, dx), (1, 2)) == src_key
+    return hit & src_mask
+
+
+def detail_counts(pred: torch.Tensor, truth: torch.Tensor) -> tuple[int, int, int, int]:
+    """(truth speckles, recovered, predicted speckles, correct predicted)."""
+    pk, ps = _keys_and_speckles(pred)
+    tk, ts = _keys_and_speckles(truth)
+    return int(ts.sum()), int(_near_same_colour(tk, ts, pk).sum()), int(ps.sum()), int(_near_same_colour(pk, ps, tk).sum())
 
 
 def coherence_counts(frames: torch.Tensor) -> tuple[int, int]:
@@ -78,8 +112,10 @@ def frame_metrics(pred: torch.Tensor, target: torch.Tensor, reference: torch.Ten
     rgb_err = ((p[:, :3] - g[:, :3]).abs().mean(1) * ga).sum().item()
     ps, pk = coherence_counts(p)
     gs, gk = coherence_counts(g)
+    d_true, d_rec, d_pred, d_ok = detail_counts(p, g)
     return {"inter": inter, "union": union, "exact": exact, "near": near, "rgb_err": rgb_err,
             "stray_pred": ps, "stray_true": gs, "speckle_pred": pk, "speckle_true": gk,
+            "detail_true": d_true, "detail_rec": d_rec, "detail_pred": d_pred, "detail_ok": d_ok,
             "true_opaque": ga.sum().item(), "pred_opaque": pa.sum().item(), "frames": len(b)}
 
 
@@ -91,6 +127,8 @@ def summarize(totals: dict) -> dict:
         "palette_fidelity": totals["near"] / max(totals["pred_opaque"], 1),
         "stray_excess": (totals.get("stray_pred", 0) - totals.get("stray_true", 0)) / max(totals["frames"], 1),
         "speckle_excess": (totals.get("speckle_pred", 0) - totals.get("speckle_true", 0)) / max(totals["frames"], 1),
+        "detail_recall": totals.get("detail_rec", 0) / max(totals.get("detail_true", 0), 1),
+        "detail_precision": totals.get("detail_ok", 0) / max(totals.get("detail_pred", 0), 1),
         "frames": totals["frames"],
     }
 

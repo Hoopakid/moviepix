@@ -40,3 +40,46 @@
   5. **Copy from already generated frames** (temporal consistency; could make rounds pay off).
   6. Metrics: FLIP, detail-pixel accuracy, region-swap rate, per-action breakdown.
 - To verify in wave 2: existence/details of 2610.16423, 2610.27253, 2611.20628 (PixelBench).
+
+## Track 2 — techniques (received)
+- **Key insight about our own code:** the loss optimises probability per COLOUR (sum over
+  same-coloured reference pixels) but decoding chose per REFERENCE PIXEL. A colour spread
+  over many pixels then loses to the single "transparent"/"new" slots → likely causes weak
+  silhouettes, lost details, and background-first confidence ordering; it also biased which
+  pixels self-conditioning treated as known. Fix implemented (colour-aggregated decoding,
+  default on); to be measured on all checkpoints.
+- Theory: per-pixel argmax is the optimal decoder for a per-pixel error count, so rounds
+  cannot beat one-shot on pixel_exact by construction; their value is joint coherence /
+  details → need detail metrics (speckle precision/recall with ±1 px tolerance, colour-
+  histogram L1).
+- Decoding-only ideas to test next: count-matched decoding (match expected colour counts
+  → restores rare 1-px details), offset-consensus (pool copy offsets over neighbours),
+  Halton / margin orders, ReMDM revision passes. Training-side: detail-weighted loss, soft
+  self-conditioning + loss on known pixels, a tiny Token-Critic head, relative-position
+  bias on copy logits. Autoguidance speculative.
+
+## Track 4 — deployment (received)
+- Matches my prototype (ONNX export works, 99.9996% parity). Plan: 3 graphs (reference
+  encoder once; decoder trunk; copy head run 1–2 frames at a time with max−logsumexp
+  confidence), host-side compaction/argsort/loop in JS; onnxruntime-web WASM first,
+  WebGPU optional; static int8 QDQ on convs only, copy path fp32; HF static Space with
+  COOP/COEP headers; Aseprite via Lua extension calling the CLI.
+- Risks: copy-logit memory (split head), GroupNorm op coverage on WebGPU/Unity, MHA
+  fast path (already hand-written in my export), int8 flipping near-tie argmaxes.
+- 32 px browser safe; 64 px < 200 ms in browser uncertain → one-shot default, maybe D=32.
+
+## Track 3 — other styles (received)
+- Verified-permissive animated packs for an out-of-style test set (licences quoted in the
+  track notes): Puny Characters (CC0, chibi 32 px, 8 dirs, idle/walk/attacks/hurt/death),
+  Ninja Adventure (CC0, 50+ chars, 16 px), Chasersgaming RPG Ranger/Knight NES/GB (CC0,
+  2–4 colour palettes), Antifarea 16×18 (CC-BY 3.0), Bit Era Extended (CC0, 20 colour
+  variants), Calciumtrice (CC-BY 3.0, side), LuizMelo fighters (CC0, large side view),
+  0x72, Pixel Frog, Sunny Land, Ars Notoria (CC0 extras).
+- Excluded: Tiny RPG (Zerie), Mystic Woods, Sunnyside, Pipoya, CraftPix, Mixamo (all forbid
+  AI training and/or redistribution).
+- Strategy ranking: (1) layer-aware LPC augmentation (chibi head scaling, short legs, size,
+  outline add/remove, flat/posterised shading, hue, mirrored directions) — exact GT kept;
+  (2) add real CC0 packs, hold out by pack AND artist; (3) few-shot fine-tune on user
+  frames; (4) CC0 3D renders (Quaternius + CMU mocap) later; (5) skeleton/part conditioning deferred.
+- Evaluation: separate splits (LPC held-out parts / near out-of-style / far out-of-style),
+  report worst pack, align by pivot and animation phase, ±1 px tolerant metrics, no FID.

@@ -40,7 +40,7 @@ batches = list(DataLoader(ds, batch_size=32, collate_fn=collate))
 rows = []
 print(f"{len(ds)} examples, {cfg['dataset']}, {a.split}")
 VARIANTS = FULL if a.set == "full" else AGG
-print(f"{'variant':22s} {'exact':>7s} {'iou':>7s} {'stray+':>7s} {'speck+':>7s} {'sec':>6s}")
+print(f"{'variant':22s} {'exact':>7s} {'iou':>7s} {'speck+':>7s} {'d_rec':>6s} {'d_prec':>6s} {'sec':>6s}")
 for steps, order, agg in VARIANTS:
     totals = {}
     t0 = time.time()
@@ -53,6 +53,6 @@ for steps, order, agg in VARIANTS:
         torch.mps.empty_cache()
     r = {"steps": steps, "order": order, "aggregate": agg, **summarize(totals), "seconds": round(time.time() - t0, 1)}
     rows.append(r)
-    print(f"{steps} {order:11s} {'colour' if agg else 'pixel ':7s} {r['pixel_exact']:7.4f} {r['alpha_iou']:7.4f} {r['stray_excess']:7.2f} "
-          f"{r['speckle_excess']:7.2f} {r['seconds']:6.1f}", flush=True)
+    print(f"{steps} {order:11s} {'colour' if agg else 'pixel ':7s} {r['pixel_exact']:7.4f} {r['alpha_iou']:7.4f} "
+          f"{r['speckle_excess']:7.2f} {r['detail_recall']:6.3f} {r['detail_precision']:6.3f} {r['seconds']:6.1f}", flush=True)
 (a.run / f"decode-experiments-{a.set}.json").write_text(json.dumps({"split": a.split, "examples": len(ds), "rows": rows}, indent=2))

@@ -112,3 +112,19 @@ def test_color_aggregation_prefers_a_spread_colour_over_transparent():
     agg = probs.new_zeros(1, 1, 2).scatter_add_(-1, ids[:, None, :], probs[..., 2:])
     assert float(agg[..., 0]) > 0.3          # aggregated colour wins
     assert int(probs.argmax(-1)) == 0        # per-pixel argmax would pick transparent
+
+
+def test_detail_metrics():
+    from moviepix.eval.metrics import detail_counts
+
+    t = torch.zeros(1, 4, 8, 8)
+    t[0, 3, 1:6, 1:6] = 1
+    t[0, :3, 1:6, 1:6] = 0.5
+    t[0, :3, 3, 3] = 0.9                  # a 1-pixel detail
+    p = t.clone()
+    p[0, :3, 3, 3] = 0.5                  # erased
+    p[0, :3, 3, 4] = 0.9                  # ...but drawn 1 px to the right: still counts
+    true_n, rec, pred_n, ok = detail_counts(p, t)
+    assert true_n == 1 and rec == 1 and pred_n == 1 and ok == 1
+    p2 = t.clone(); p2[0, :3, 3, 3] = 0.5  # erased, nowhere else
+    assert detail_counts(p2, t)[1] == 0
