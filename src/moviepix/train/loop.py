@@ -50,6 +50,11 @@ DEFAULTS = {
     # (fraction of the GPU's recommended working set) so the Mac stays usable;
     # over the cap, training stops with an out-of-memory error instead of swapping.
     "mps_memory_fraction": 0.6,
+    # CPU threads for the training process (None = PyTorch default, all cores). Fewer
+    # threads leave the Mac responsive for other work; the GPU does the heavy lifting.
+    "cpu_threads": None,
+    # Warm start: copy matching weights from this checkpoint before training.
+    "init_from": None,
 }
 
 
@@ -113,6 +118,8 @@ def main(argv=None) -> None:
         tc["steps"] = args.steps
 
     device = best_device(tc["device"])
+    if tc["cpu_threads"]:
+        torch.set_num_threads(int(tc["cpu_threads"]))
     if device == "mps" and tc["mps_memory_fraction"]:
         torch.mps.set_per_process_memory_fraction(tc["mps_memory_fraction"])
     amp_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(tc["amp"]) if device != "cpu" else None
@@ -133,6 +140,13 @@ def main(argv=None) -> None:
         torch.set_rng_state(state["torch_rng"].cpu())
         print(f"resumed {run} at step {step}")
     else:
+        if tc["init_from"]:
+            src = torch.load(tc["init_from"], map_location=device, weights_only=False)["model"]
+            own = model.state_dict()
+            usable = {k: v for k, v in src.items() if k in own and own[k].shape == v.shape}
+            model.load_state_dict(usable, strict=False)
+            print(json.dumps({"init_from": tc["init_from"], "loaded": len(usable),
+                              "new": sorted(set(own) - set(usable))}), flush=True)
         write_json(run / "recipe.json", {
             "model": cfg["model"], "dataset": cfg["dataset"], "dataset_manifest_sha256": file_sha256(data_root / "manifest.jsonl"),
             "git": git_commit(), "parameters": params, "device": device, "amp": tc["amp"],

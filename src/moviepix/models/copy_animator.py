@@ -50,9 +50,16 @@ def _pack(rgb: torch.Tensor) -> torch.Tensor:
 class CopyAnimator(Animator):
     def __init__(self, size: int = 64, channels=(32, 64, 128, 128), ref_channels=(32, 64, 128),
                  cond_dim: int = 128, dim: int = 64, frame_heads: int = 4,
-                 full_mask_prob: float = 0.25, steps: int = 8, loss_chunk: int = 32):
+                 full_mask_prob: float = 0.25, steps: int = 8, loss_chunk: int = 32,
+                 alpha_head: bool = False, self_cond_prob: float = 0.0):
         super().__init__()
         self.loss_chunk = loss_chunk
+        # alpha_head: a separate "is this pixel drawn?" output (like the U-Net baseline),
+        # instead of "transparent" competing with every copy choice (decision 0018).
+        self.alpha_head = alpha_head
+        # self_cond_prob: share of training frames whose "already decided" pixels are the
+        # model's own most confident predictions, exactly as in iterative decoding.
+        self.self_cond_prob = self_cond_prob
         self.size = size
         self.steps = steps
         self.full_mask_prob = full_mask_prob
@@ -67,6 +74,7 @@ class CopyAnimator(Animator):
         self.to_query = nn.Conv2d(out, dim, 1)
         self.special = nn.Conv2d(out, 2, 1)  # transparent, new
         self.new_rgb = nn.Conv2d(out, 3, 1)
+        self.alpha = nn.Conv2d(out, 1, 1) if alpha_head else None
         self.pos = nn.Parameter(torch.randn(dim, size, size) * 0.02)
         self.scale = dim ** -0.5
 
@@ -90,13 +98,15 @@ class CopyAnimator(Animator):
         return keys, colors, valid
 
     def features(self, reference, canvas, known, b, t, cond, batch: int, t_max: int):
-        """Per output pixel: query [N, P, D], transparent/new logits [N, P, 2], new RGB [N, 3, S, S]."""
+        """Per output pixel: query [N, P, D], transparent/new logits [N, P, 2], new RGB [N, 3, S, S],
+        and alpha logits [N, P] (None without the alpha head)."""
         x = torch.cat([reference[b], canvas, known], 1)
         hook = lambda h: self.frame_attn(h, b, t, batch, t_max)  # noqa: E731
         feat = self.dec_norm(self.dec_unet(x, cond, mid_hook=hook))
         q = (self.to_query(feat) + self.pos).flatten(2).transpose(1, 2)
         special = self.special(feat).flatten(2).transpose(1, 2).float()
-        return q, special, torch.sigmoid(self.new_rgb(feat))
+        alpha = self.alpha(feat).flatten(1).float() if self.alpha is not None else None
+        return q, special, torch.sigmoid(self.new_rgb(feat)), alpha
 
     def copy_logits(self, q, keys, valid):
         """[n, P, D] x [n, K, D] -> [n, P, K], in float32 (they feed a log-sum-exp)."""
@@ -106,7 +116,7 @@ class CopyAnimator(Animator):
     def decode(self, reference, canvas, known, ref, b, t, cond, batch: int, t_max: int):
         """Full logits [N, P, 2+K] and new-color RGB, for inference."""
         keys, _, valid = ref
-        q, special, new_rgb = self.features(reference, canvas, known, b, t, cond, batch, t_max)
+        q, special, new_rgb, _ = self.features(reference, canvas, known, b, t, cond, batch, t_max)
         parts = [torch.cat([special[i:i + 32], self.copy_logits(q[i:i + 32], keys[b[i:i + 32]], valid[b[i:i + 32]])], -1)
                  for i in range(0, len(b), 32)]
         return torch.cat(parts, 0), new_rgb
@@ -117,19 +127,30 @@ class CopyAnimator(Animator):
         so the full [frames, pixels, reference pixels] table never exists at once."""
         keys, _, valid = ref
         chunk = chunk or max(self.loss_chunk, 4)
-        q, special, new_rgb = self.features(reference, canvas, known, b, t, cond, batch, t_max)
+        q, special, new_rgb, alpha = self.features(reference, canvas, known, b, t, cond, batch, t_max)
         choices, confs = [], []
         for i in range(0, len(b), chunk):
             j = slice(i, i + chunk)
             logits = torch.cat([special[j], self.copy_logits(q[j], keys[b[j]], valid[b[j]])], -1)
+            if alpha is not None:
+                logits[..., TRANSPARENT] = float("-inf")  # colour choice only; alpha decides "drawn or not"
             probs = F.softmax(logits / temperature if temperature > 0 else logits, -1)
             if temperature > 0:
                 n, p, c = probs.shape
                 choice = torch.multinomial(probs.reshape(n * p, c), 1, generator=generator).reshape(n, p)
             else:
                 choice = probs.argmax(-1)
+            conf = torch.gather(probs, -1, choice[..., None])[..., 0]
+            if alpha is not None:
+                p_on = torch.sigmoid(alpha[j])
+                if temperature > 0:
+                    on = torch.rand(p_on.shape, generator=generator, device=p_on.device) < p_on
+                else:
+                    on = p_on > 0.5
+                choice = torch.where(on, choice, torch.full_like(choice, TRANSPARENT))
+                conf = torch.where(on, p_on * conf, 1 - p_on)
             choices.append(choice)
-            confs.append(torch.gather(probs, -1, choice[..., None])[..., 0])
+            confs.append(conf)
         return torch.cat(choices), torch.cat(confs), new_rgb
 
     def _chunk_nll(self, q, keys, valid, special, tgt_key, color_key, opaque, hidden):
@@ -137,8 +158,16 @@ class CopyAnimator(Animator):
 
         nll = logsumexp(all choices) - logsumexp(correct choices); several reference
         pixels may share the target color and all of them count as correct.
+        With the alpha head, this is the colour loss of drawn pixels only.
         """
         copy = self.copy_logits(q, keys, valid)
+        if self.alpha is not None:
+            lse_all = torch.logsumexp(torch.cat([special[..., NEW:NEW + 1], copy], -1), -1)
+            match = (tgt_key[..., None] == color_key[:, None, :]) & valid[:, None, :]
+            found = match.any(-1)
+            lse_copy = torch.logsumexp(copy.masked_fill(~match, float("-inf")), -1)
+            picked = torch.where(found, lse_copy, special[..., NEW])
+            return ((lse_all - picked) * hidden * opaque).sum()
         lse_all = torch.logsumexp(torch.cat([special, copy], -1), -1)
         match = (tgt_key[..., None] == color_key[:, None, :]) & valid[:, None, :]
         found = match.any(-1)
@@ -167,17 +196,38 @@ class CopyAnimator(Animator):
         N, P = len(b), S * S
         target = batch.target[b, t]  # [N, 4, S, S]
 
-        # which pixels are hidden: cosine-distributed share per frame, often all
-        u = torch.rand(N, device=ref_img.device)
+        # Which pixels are hidden, per frame:
+        #   full mask (one-shot practice)       nothing given
+        #   random hints                        a random share of the TRUE pixels is given
+        #   self-conditioned                    the model's OWN most confident predictions are
+        #                                       given, as in iterative decoding, and the rest
+        #                                       must be predicted (correcting its own guesses)
+        dev = ref_img.device
+        u = torch.rand(N, device=dev)
         share = torch.cos(u * math.pi / 2)
-        share = torch.where(torch.rand(N, device=ref_img.device) < self.full_mask_prob, torch.ones_like(share), share)
-        hidden = torch.rand(N, P, device=ref_img.device) < share[:, None]  # [N, P]
-        known = (~hidden).float().reshape(N, 1, S, S)
-        canvas = target * known
+        mode = torch.rand(N, device=dev)
+        full = mode < self.full_mask_prob
+        selfc = (~full) & (mode < self.full_mask_prob + self.self_cond_prob)
+        share = torch.where(full, torch.ones_like(share), share)
+        hidden = torch.rand(N, P, device=dev) < share[:, None]  # [N, P]
 
         ref = self.encode_reference(ref_img)
         cond = self.cond(batch.action[b], batch.direction[b], t, n_frames[b])
-        q, special, new_rgb = self.features(ref_img, canvas, known, b, t, cond, B, t_max)
+        canvas = target * (~hidden).float().reshape(N, 1, S, S)
+        if selfc.any():
+            with torch.no_grad():
+                zeros = torch.zeros_like(target)
+                choice, conf, new0 = self._choose(ref_img, zeros, zeros[:, :1], ref, b, t, cond, B, t_max, 0.0, None)
+                guess = self.render(choice, new0, ref[1][b]).to(target.dtype)
+                n_known = ((1 - share) * P).long()  # same share as the random hints
+                rank = conf.argsort(1, descending=True).argsort(1)
+                own_known = rank < n_known[:, None]
+            hidden = torch.where(selfc[:, None], ~own_known, hidden)
+            m = selfc[:, None, None, None]
+            canvas = torch.where(m, guess * (~hidden).float().reshape(N, 1, S, S), canvas)
+        known = (~hidden).float().reshape(N, 1, S, S)
+
+        q, special, new_rgb, alpha = self.features(ref_img, canvas, known, b, t, cond, B, t_max)
 
         keys, colors, valid = ref
         tgt = target.flatten(2).transpose(1, 2)  # [N, P, 4]
@@ -192,7 +242,13 @@ class CopyAnimator(Animator):
             bj = b[j]
             total = total + checkpoint(self._chunk_nll, q[j], keys[bj], valid[bj], special[j], tgt_key[j],
                                        color_key[bj], opaque[j], hid[j], use_reentrant=False)
-        nll = total / hidden.sum().clamp(min=1)
+        if alpha is not None:
+            nll = total / (hidden & opaque).sum().clamp(min=1)
+            alpha_bce = (F.binary_cross_entropy_with_logits(alpha, opaque.float(), reduction="none") * hid).sum() \
+                / hidden.sum().clamp(min=1)
+        else:
+            nll = total / hidden.sum().clamp(min=1)
+            alpha_bce = nll.new_zeros(())
         with torch.no_grad():
             found = torch.zeros_like(opaque)
             for i in range(0, N, self.loss_chunk):
@@ -202,9 +258,10 @@ class CopyAnimator(Animator):
 
         new_mask = (hidden & opaque & ~found).reshape(N, 1, S, S).float()
         new_l1 = ((new_rgb.float() - target[:, :3]).abs() * new_mask).sum() / (new_mask.sum() * 3).clamp(min=1)
-        loss = nll + new_l1
-        return loss, {"loss": loss.item(), "nll": nll.item(), "new_rgb_l1": new_l1.item(),
-                      "hidden_share": hidden.float().mean().item()}
+        loss = nll + new_l1 + alpha_bce
+        return loss, {"loss": loss.item(), "nll": nll.item(), "alpha_bce": alpha_bce.item(),
+                      "new_rgb_l1": new_l1.item(), "hidden_share": hidden.float().mean().item(),
+                      "self_cond_share": selfc.float().mean().item()}
 
     # ---- inference ------------------------------------------------------
 

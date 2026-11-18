@@ -1,0 +1,37 @@
+# 64 px, warm-started from the first 64 px model, adding:
+#   - self-conditioned training: some frames are given the model's own most confident
+#     predictions as "already decided", like iterative decoding (decision 0018)
+#   - a separate alpha ("drawn or not") output for sharper silhouettes
+# Settings leave the Mac usable for other work while it trains.
+model = "copy_animator"
+dataset = "lpc64v2"
+
+[model_options]
+channels = [32, 64, 128, 128]
+ref_channels = [32, 64, 128]
+cond_dim = 128
+dim = 64
+frame_heads = 4
+full_mask_prob = 0.25
+self_cond_prob = 0.4
+alpha_head = true
+steps = 4                  # default decoding rounds (random order)
+loss_chunk = 4
+
+[train]
+init_from = "data/runs/20261118-0016-copy_animator_64/best.pt"
+device = "auto"
+amp = "bf16"
+batch_characters = 2
+per_character = 2
+steps = 16000              # set from the check run
+lr = 2e-4                  # lower than from scratch: this continues a trained model
+warmup = 300
+seed = 2
+workers = 1                # one data helper process
+cpu_threads = 2            # leave CPU cores for other work
+log_every = 100
+val_every = 2000
+val_characters = 64
+val_per_character = 4
+mps_memory_fraction = 0.6

@@ -82,3 +82,16 @@ def test_copy_animator_decoding_orders():
         out = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=4, order=order)
         assert out.shape == (3, 13, 4, 32, 32)
         assert set(out[:, :, 3].unique().tolist()) <= {0.0, 1.0}
+
+
+def test_copy_animator_alpha_head_and_self_conditioning():
+    torch.manual_seed(0)
+    model = build("copy_animator", size=32, steps=2, alpha_head=True, self_cond_prob=0.6)
+    b = _batch(32)
+    loss, logs = model.loss(b)
+    loss.backward()
+    assert torch.isfinite(loss) and logs["alpha_bce"] > 0 and logs["self_cond_share"] > 0
+    assert model.alpha.weight.grad is not None
+    model.eval()
+    out = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=2)
+    assert out.shape == (3, 13, 4, 32, 32) and set(out[:, :, 3].unique().tolist()) <= {0.0, 1.0}
