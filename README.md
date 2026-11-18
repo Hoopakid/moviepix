@@ -40,7 +40,7 @@ local alternative:
 |---|---|
 | Dataset | ✅ 21,000 composed characters, 15 actions, 4 directions, 64x64 and 32x32 |
 | Baselines | ✅ trained and evaluated (below) |
-| Main model | ✅ 32x32 trained, beats both baselines · 🔄 64x64 training |
+| Main model | ✅ 32x32 and 64x64 trained; beats both baselines |
 | Browser demo, weights | ⏳ after the main model |
 
 ## How it works
@@ -89,9 +89,11 @@ weapons that no training character wears.
   the 200 ms CPU target.
 - Picking colors by value (B) keeps colors exact but swaps whole regions to the
   wrong color, so it loses even to plain painting (A). Copying by *position* fixes that.
+- **64x64** (one overnight run, 144k examples): 75.8% exact pixels one-shot (75.3% on
+  unseen items), 117 ms on CPU for 8 frames.
 - Open issues: C's silhouettes are still a little behind A's, and 8-round decoding
   does not yet beat one-shot on these per-pixel scores. Details in
-  [docs/decisions](docs/decisions/README.md) (0013, 0015).
+  [docs/decisions](docs/decisions/README.md) (0013, 0015, 0016).
 
 ## Quick start
 
@@ -137,7 +139,7 @@ These are requirements for a release, measured by `moviepix-eval`
 
 - [x] **M1 Data**: LPC composer, permissive-license filter, 64 and 32 px builds, splits, credits, viewer
 - [x] **M2 Baselines**: loader, training with resume, metrics, baselines A and B
-- [ ] **M3 Main model**: `copy_animator` at 32 px ✅, 64 px, inference CLI
+- [ ] **M3 Main model**: `copy_animator` at 32 px ✅ and 64 px ✅, better iterative decoding, inference CLI
 - [ ] **M4 Other art styles**: augmentation, more CC0 sprite sets, out-of-style test set
 - [ ] **M5 Release**: ONNX export, browser demo, weights and dataset on Hugging Face, model card
 
