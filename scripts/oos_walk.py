@@ -152,6 +152,7 @@ def main():
     ap.add_argument("runs", type=Path, nargs="+")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--lpc-characters", type=int, default=40)
+    ap.add_argument("--out", type=Path, default=Path("docs/research/oos-walk-results.json"))
     a = ap.parse_args()
     torch.set_num_threads(4)
     samples = {}
@@ -178,7 +179,7 @@ def main():
         for k, v in res.items():
             print(f"{k:18s} {v['frames']:6d} {v['model_exact']:7.3f} {v['baseline_exact']:7.3f} "
                   f"{v['model_exact'] - v['baseline_exact']:+7.3f} {v['model_iou']:6.3f} {v['baseline_iou']:6.3f}", flush=True)
-    Path("docs/research/oos-walk-results.json").write_text(json.dumps(out, indent=2))
+    a.out.write_text(json.dumps(out, indent=2))
 
 
 if __name__ == "__main__":

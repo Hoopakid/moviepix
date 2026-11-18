@@ -153,3 +153,27 @@
   32 px are closer in size to LPC-32 characters).
 - Caveat: tiny-sprite walks move few pixels, so the baseline is strong; packs have only
   3–4-frame walks. Still, the direction is clear: Phase 2 (augmentation + varied data) is essential.
+
+## Phase 1 — clean comparison (docs/research/phase1-eval.log)
+c32v2_new (alpha head + self-conditioning 0.4) vs c32v2_control (neither); same data
+(lpc32v2), same budget (40k steps × 16), both from scratch. 256 examples per split.
+
+| one-shot, colour decoding | control | new | Δ |
+|---|---:|---:|---:|
+| exact, validation | 0.768 | **0.798** | **+3.0** |
+| exact, unseen items | 0.759 | **0.786** | **+2.7** |
+| IoU, validation | **0.978** | 0.974 | −0.4 |
+| speckle excess (truth = 0) | −11.5 | **−7.6** | closer to truth |
+| detail recall / precision | 0.783 / 0.821 | **0.807 / 0.824** | +2.4 / +0.3 |
+| exact, 8 confidence rounds vs one-shot | −0.6 | −0.1 | rounds no longer hurt |
+
+- **Verdict: the new recipe wins in-style**, cleanly attributed (no warm start). It
+  becomes the default for later runs. Its small IoU cost comes from the alpha head (it
+  is slightly more conservative at edges).
+- **Out of style it does not help**: Puny is still below baseline for both (−5.8 / −6.9);
+  Antifarea gain drops +13.6 → +8.8; Ninja/NES similar. Out-of-style generalisation is a
+  data problem, not a decoding/recipe problem → Phase 2 (docs/research/phase2-design.md).
+- Colour-decoding speed fix (one-hot matmul instead of scatter_add, 36× faster on MPS
+  in a microbenchmark) landed mid-evaluation: the control-validation timings (9.4 s for 4
+  colour rounds) use the old code, the rest the new (≈ same as per-pixel). Results are
+  numerically identical.

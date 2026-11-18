@@ -127,24 +127,22 @@ class CopyAnimator(Animator):
         representative key per colour [B, C], valid colours [B, C])."""
         _, colors, valid = ref
         B, K = valid.shape
-        packed = _pack(colors)
-        ids = torch.zeros(B, K, dtype=torch.long, device=valid.device)
-        reps, counts = [], []
-        for i in range(B):
-            u, inv = torch.unique(packed[i][valid[i]], return_inverse=True)
-            ids[i, valid[i]] = inv
-            first = torch.full((len(u),), K, dtype=torch.long, device=valid.device)
-            pos = torch.nonzero(valid[i]).flatten()
-            first.scatter_reduce_(0, inv, pos, reduce="amin")
-            reps.append(first)
-            counts.append(len(u))
-        C = max(max(counts), 1)
-        rep = torch.zeros(B, C, dtype=torch.long, device=valid.device)
-        cvalid = torch.zeros(B, C, dtype=torch.bool, device=valid.device)
-        for i, r in enumerate(reps):
-            rep[i, :len(r)] = r
-            cvalid[i, :len(r)] = True
-        ids = torch.where(valid, ids, torch.full_like(ids, C))  # invalid keys go to a dump column
+        dev = valid.device
+        # one batched unique over (example, colour): no per-example loop or host syncs
+        flat = (torch.arange(B, device=dev)[:, None] << 25) | _pack(colors)
+        flat = torch.where(valid, flat, torch.full_like(flat, B << 25))  # invalid keys sort last
+        u, inv = torch.unique(flat.flatten(), return_inverse=True)
+        inv = inv.view(B, K)
+        owner = (u >> 25).clamp(max=B)  # example of each unique colour (B = invalid)
+        start = torch.searchsorted(owner, torch.arange(B + 1, device=dev))
+        local = inv - start[:B, None]  # colour id within its example
+        C = max(int((start[1:] - start[:-1]).max()), 1)
+        ids = torch.where(valid, local, torch.full_like(local, C))  # invalid keys go to a dump column
+        pos = torch.arange(K, device=dev).expand(B, K)
+        first = torch.full((B, C + 1), K, dtype=torch.long, device=dev)
+        first.scatter_reduce_(1, ids, torch.where(valid, pos, torch.full_like(pos, K)), reduce="amin")
+        rep, cvalid = first[:, :C], first[:, :C] < K
+        rep = torch.where(cvalid, rep, torch.zeros_like(rep))
         return ids, rep, cvalid
 
     def _choose(self, reference, canvas, known, ref, b, t, cond, batch, t_max, temperature, generator,
@@ -160,6 +158,8 @@ class CopyAnimator(Animator):
         chunk = chunk or max(self.loss_chunk, 4)
         q, special, new_rgb, alpha = self.features(reference, canvas, known, b, t, cond, batch, t_max)
         groups = self.color_groups(ref) if aggregate else None
+        if groups is not None:  # [B, K, C] one-hot colour membership: aggregation is a matmul
+            onehot = F.one_hot(groups[0], groups[1].shape[1] + 1)[..., :-1].float()
         choices, confs = [], []
         for i in range(0, len(b), chunk):
             j = slice(i, i + chunk)
@@ -168,11 +168,9 @@ class CopyAnimator(Animator):
                 logits[..., TRANSPARENT] = float("-inf")  # colour choice only; alpha decides "drawn or not"
             probs = F.softmax(logits / temperature if temperature > 0 else logits, -1)
             if groups is not None:
-                ids, rep, cvalid = groups
-                n, p, _ = probs.shape
-                C = rep.shape[1]
-                agg = probs.new_zeros(n, p, C + 1).scatter_add_(-1, ids[b[j]][:, None, :].expand(n, p, -1), probs[..., 2:])
-                classes = torch.cat([probs[..., :2], agg[..., :C]], -1)
+                _, rep, _ = groups
+                # (scatter_add over [frames, pixels, keys] was ~36x slower on MPS)
+                classes = torch.cat([probs[..., :2], torch.bmm(probs[..., 2:].float(), onehot[b[j]]).to(probs.dtype)], -1)
             else:
                 classes = probs
             if temperature > 0:

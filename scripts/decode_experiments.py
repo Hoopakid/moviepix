@@ -55,4 +55,4 @@ for steps, order, agg in VARIANTS:
     rows.append(r)
     print(f"{steps} {order:11s} {'colour' if agg else 'pixel ':7s} {r['pixel_exact']:7.4f} {r['alpha_iou']:7.4f} "
           f"{r['speckle_excess']:7.2f} {r['detail_recall']:6.3f} {r['detail_precision']:6.3f} {r['seconds']:6.1f}", flush=True)
-(a.run / f"decode-experiments-{a.set}.json").write_text(json.dumps({"split": a.split, "examples": len(ds), "rows": rows}, indent=2))
+(a.run / f"decode-experiments-{a.set}{'' if a.split == 'validation' else '-' + a.split}.json").write_text(json.dumps({"split": a.split, "examples": len(ds), "rows": rows}, indent=2))

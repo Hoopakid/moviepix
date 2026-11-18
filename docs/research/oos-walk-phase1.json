@@ -1,0 +1,90 @@
+{
+  "20261118-2227-c32v2_control": {
+    "puny": {
+      "frames": 80,
+      "model_exact": 0.7493786318648994,
+      "baseline_exact": 0.8073130227009934,
+      "model_iou": 0.8022193060512175,
+      "baseline_iou": 0.8816314995208943
+    },
+    "ninja": {
+      "frames": 193,
+      "model_exact": 0.5731674652542798,
+      "baseline_exact": 0.5022814705185861,
+      "model_iou": 0.7495725399059266,
+      "baseline_iou": 0.8602119192258548
+    },
+    "knight": {
+      "frames": 14,
+      "model_exact": 0.6989811264874223,
+      "baseline_exact": 0.6554195474049672,
+      "model_iou": 0.7732834903963873,
+      "baseline_iou": 0.8564346890631752
+    },
+    "ranger": {
+      "frames": 14,
+      "model_exact": 0.819569439396037,
+      "baseline_exact": 0.771646500707874,
+      "model_iou": 0.8346795262949266,
+      "baseline_iou": 0.8918872842744836
+    },
+    "antifarea": {
+      "frames": 96,
+      "model_exact": 0.471682465182864,
+      "baseline_exact": 0.3357123301397509,
+      "model_iou": 0.6919986633879879,
+      "baseline_iou": 0.774580213603985
+    },
+    "LPC (in-style)": {
+      "frames": 1280,
+      "model_exact": 0.7878780800723855,
+      "baseline_exact": 0.6291253482961143,
+      "model_iou": 0.972175108924767,
+      "baseline_iou": 0.8793840156761229
+    }
+  },
+  "20261118-1627-c32v2_new": {
+    "puny": {
+      "frames": 80,
+      "model_exact": 0.7383966081526812,
+      "baseline_exact": 0.8073130227009934,
+      "model_iou": 0.8401958367030039,
+      "baseline_iou": 0.8816314995208943
+    },
+    "ninja": {
+      "frames": 193,
+      "model_exact": 0.5657745457405037,
+      "baseline_exact": 0.5022814705185861,
+      "model_iou": 0.6981543407128032,
+      "baseline_iou": 0.8602119192258548
+    },
+    "knight": {
+      "frames": 14,
+      "model_exact": 0.7137378342866675,
+      "baseline_exact": 0.6554195474049672,
+      "model_iou": 0.7972956538859275,
+      "baseline_iou": 0.8564346890631752
+    },
+    "ranger": {
+      "frames": 14,
+      "model_exact": 0.8232857846323053,
+      "baseline_exact": 0.771646500707874,
+      "model_iou": 0.8195649941915937,
+      "baseline_iou": 0.8918872842744836
+    },
+    "antifarea": {
+      "frames": 96,
+      "model_exact": 0.4240668090906379,
+      "baseline_exact": 0.3357123301397509,
+      "model_iou": 0.6330194804239132,
+      "baseline_iou": 0.774580213603985
+    },
+    "LPC (in-style)": {
+      "frames": 1280,
+      "model_exact": 0.8104976205423778,
+      "baseline_exact": 0.6291253482961143,
+      "model_iou": 0.9665329374438688,
+      "baseline_iou": 0.8793840156761229
+    }
+  }
+}

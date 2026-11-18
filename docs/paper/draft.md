@@ -117,7 +117,16 @@ role (e.g., a red hood becomes blond): choosing colours *by value* does not iden
 *which part* a pixel belongs to. Copying *by position* does. Generalisation to unseen
 items costs C under 2 points.
 
-**[TODO: phase 1 — c32v2_new vs c32v2_control at equal budget on dataset v2.]**
+**Recipe ablation at equal budget** (dataset v2, 640k examples each, both from scratch;
+one-shot, colour-aggregated decoding, 256 examples):
+
+| Model | Exact | Exact, unseen | IoU | Speckle excess | Detail recall |
+|---|---:|---:|---:|---:|---:|
+| C (control) | 0.768 | 0.759 | **0.978** | −11.5 | 0.783 |
+| C + alpha head + self-conditioning | **0.798** | **0.786** | 0.974 | **−7.6** | **0.807** |
+
+The recipe adds 3 points exact and recovers a third of the missing one-pixel details,
+at a small silhouette cost. It does not improve out-of-style results (Section 8).
 
 ## 6. Iterative decoding and over-smoothing
 
