@@ -57,7 +57,7 @@ def main(argv=None) -> None:
         raise SystemExit(f"runs use different datasets: {datasets}")
     ds = EvalSet(args.built / datasets.pop(), args.split, characters=args.characters,
                  per_character=args.per_character, seed=123)
-    loader = DataLoader(ds, batch_size=64, collate_fn=collate)
+    loader = DataLoader(ds, batch_size=16 if ds.size >= 64 else 64, collate_fn=collate)  # 64 px: smaller batches
 
     rows, previews, first = [], [], None
     for run, steps in _variants(args.runs, args.steps):
@@ -75,6 +75,8 @@ def main(argv=None) -> None:
             with torch.no_grad():
                 pred = model.generate(ref, act, d, n, **kw)
             add(totals, frame_metrics(pred, tgt, ref, n))
+            if device == "mps":
+                torch.mps.empty_cache()
             if shown is None:
                 shown = pred[: args.examples].cpu()
                 if first is None:

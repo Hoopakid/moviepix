@@ -74,7 +74,7 @@ def main(argv=None) -> None:
                  characters=chars, per_character=args.per_character, seed=123)
     totals, first = {}, None
     per_action: dict[str, dict] = {}
-    for batch in DataLoader(ds, batch_size=64, collate_fn=collate):
+    for batch in DataLoader(ds, batch_size=16 if ds.size >= 64 else 64, collate_fn=collate):
         ref, act, d, n, tgt = (x.to(device) for x in (batch.reference, batch.action, batch.direction, batch.n_frames, batch.target))
         pred = model.generate(ref, act, d, n, **_gen_kwargs(model, args.steps))
         add(totals, frame_metrics(pred, tgt, ref, n))

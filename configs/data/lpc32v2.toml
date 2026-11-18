@@ -1,0 +1,5 @@
+# Dataset v2 at 32x32: the lpc64v2 characters, downscaled (data/resize.py).
+# Same characters and splits as lpc64v2; build lpc64v2 first.
+name = "lpc32v2"
+derive_from = "lpc64v2"
+size = 32
