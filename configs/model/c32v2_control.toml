@@ -1,0 +1,33 @@
+# Phase 1 (clean evidence), 32 px on dataset v2. CONTROL: the original copy_animator recipe (no alpha output, no self-conditioning)
+# c32v2_new and c32v2_control are identical except for alpha_head and self_cond_prob,
+# so any difference in results comes from the recipe. Same budget as the first C32:
+# 40000 steps x 16 examples = 640k examples.
+model = "copy_animator"
+dataset = "lpc32v2"
+
+[model_options]
+channels = [32, 64, 128, 128]
+ref_channels = [32, 64, 128]
+cond_dim = 128
+dim = 64
+frame_heads = 4
+full_mask_prob = 0.25
+self_cond_prob = 0.0
+alpha_head = false
+steps = 4
+loss_chunk = 32
+
+[train]
+device = "auto"
+amp = "bf16"
+batch_characters = 4
+per_character = 4
+steps = 40000
+lr = 3e-4
+warmup = 1000
+seed = 1
+workers = 2
+cpu_threads = 2            # leave CPU cores for other work
+log_every = 100
+val_every = 2000
+mps_memory_fraction = 0.5
