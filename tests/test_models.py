@@ -60,3 +60,25 @@ def test_copy_animator_decoding_modes():
     v2 = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=4, temperature=1.0, generator=g(2))
     v1b = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=4, temperature=1.0, generator=g(1))
     assert not torch.equal(v1, v2) and torch.equal(v1, v1b)
+
+
+def test_coherence_counts():
+    from moviepix.eval.metrics import coherence_counts
+
+    f = torch.zeros(1, 4, 8, 8)
+    f[0, 3, 1:4, 1:4] = 1          # a 3x3 block, one colour
+    f[0, :3, 1:4, 1:4] = 0.5
+    f[0, :3, 2, 2] = 0.9           # a speckle in the middle
+    f[0, 3, 6, 6] = 1              # a stray pixel
+    stray, speckle = coherence_counts(f)
+    assert stray == 1 and speckle == 1
+
+
+def test_copy_animator_decoding_orders():
+    torch.manual_seed(0)
+    model = build("copy_animator", size=32, steps=4).eval()
+    b = _batch(32)
+    for order in model.ORDERS:
+        out = model.generate(b.reference, b.action, b.direction, b.n_frames, steps=4, order=order)
+        assert out.shape == (3, 13, 4, 32, 32)
+        assert set(out[:, :, 3].unique().tolist()) <= {0.0, 1.0}

@@ -208,12 +208,33 @@ class CopyAnimator(Animator):
 
     # ---- inference ------------------------------------------------------
 
+    ORDERS = ("confidence", "balanced", "random", "silhouette")
+
+    @staticmethod
+    def _top(score, k, allowed):
+        """Mask of the k highest-scoring allowed pixels per row (k: [N])."""
+        score = score.masked_fill(~allowed, float("-inf"))
+        rank = score.argsort(1, descending=True).argsort(1)
+        return (rank < k[:, None]) & allowed
+
     @torch.no_grad()
     def generate(self, reference, action, direction, n_frames, text=None, steps: int | None = None,
                  temperature: float = 0.0, generator: torch.Generator | None = None,
-                 canvas: torch.Tensor | None = None, known: torch.Tensor | None = None):
+                 canvas: torch.Tensor | None = None, known: torch.Tensor | None = None, order: str = "random"):
         """Decode in `steps` rounds (1 = one-shot). Optional canvas/known [B, T, ...]
-        fix some pixels in advance (editing)."""
+        fix some pixels in advance (editing).
+
+        `order` decides which undecided pixels are committed each round:
+            confidence  the most confident first (MaskGIT). Commits empty background
+                        first and leaves the character for the last round.
+            balanced    the most confident first, but background and character pixels
+                        in proportion, so decided pixels look like training's random mix
+            random      a random order, exactly like training
+            silhouette  round 1 commits everything predicted empty (the silhouette);
+                        the character is then decided over the remaining rounds
+        """
+        if order not in self.ORDERS:
+            raise ValueError(f"order must be one of {self.ORDERS}")
         steps = steps or self.steps
         B, S = reference.shape[0], reference.shape[-1]
         t_max = int(n_frames.max())
@@ -226,23 +247,44 @@ class CopyAnimator(Animator):
         cur = canvas[b, t].float() if canvas is not None else reference.new_zeros(N, 4, S, S).float()
         done = (known[b, t].flatten(1) > 0.5) if known is not None else torch.zeros(N, P, dtype=torch.bool, device=reference.device)
         start_hidden = (~done).sum(1)  # [N]
+        start_char = None  # silhouette order: character pixels left after round 1
 
         for s in range(1, steps + 1):
             choice, conf, new_rgb = self._choose(reference, cur.to(reference.dtype),
                                                  done.float().reshape(N, 1, S, S).to(reference.dtype),
                                                  ref, b, t, cond, B, t_max, temperature, generator)
-            if temperature > 0:  # a little randomness in which pixels go first
-                g = -torch.log(-torch.log(torch.rand(conf.shape, generator=generator, device=conf.device).clamp(1e-9, 1)))
-                conf = conf.log() + temperature * g
-            conf = conf.masked_fill(done, float("-inf"))
+            if order == "random":
+                score = torch.rand(conf.shape, generator=generator, device=conf.device) if generator is not None \
+                    else torch.rand(conf.shape, device=conf.device)
+            else:
+                score = conf
+                if temperature > 0:  # a little randomness in which pixels go first
+                    g = -torch.log(-torch.log(torch.rand(conf.shape, generator=generator, device=conf.device).clamp(1e-9, 1)))
+                    score = conf.log() + temperature * g
+            undecided = ~done
+            empty = choice == TRANSPARENT
 
-            keep_hidden = torch.floor(start_hidden.float() * math.cos(math.pi / 2 * s / steps)).long()
-            n_commit = ((~done).sum(1) - keep_hidden).clamp(min=0)  # [N]
-            rank = conf.argsort(1, descending=True).argsort(1)  # rank of each pixel by confidence
-            commit = (rank < n_commit[:, None]) & ~done
+            if s == steps:
+                commit = undecided
+            elif order == "silhouette" and steps > 1:
+                if s == 1:
+                    commit = undecided & empty
+                    start_char = (undecided & ~empty).sum(1)
+                else:
+                    keep = torch.floor(start_char.float() * math.cos(math.pi / 2 * (s - 1) / (steps - 1))).long()
+                    commit = self._top(score, (undecided.sum(1) - keep).clamp(min=0), undecided)
+            else:
+                keep_hidden = torch.floor(start_hidden.float() * math.cos(math.pi / 2 * s / steps)).long()
+                n_commit = (undecided.sum(1) - keep_hidden).clamp(min=0)  # [N]
+                if order == "balanced":
+                    n_char = (undecided & ~empty).sum(1)
+                    k_char = torch.round(n_commit * n_char / undecided.sum(1).clamp(min=1)).long()
+                    commit = self._top(score, k_char, undecided & ~empty) | self._top(score, n_commit - k_char, undecided & empty)
+                else:
+                    commit = self._top(score, n_commit, undecided)
+
             rgba = self.render(choice, new_rgb, colors[b])
-            m = commit.reshape(N, 1, S, S)
-            cur = torch.where(m, rgba, cur)
+            cur = torch.where(commit.reshape(N, 1, S, S), rgba, cur)
             done = done | commit
 
         out = reference.new_zeros(B, t_max, 4, S, S)
