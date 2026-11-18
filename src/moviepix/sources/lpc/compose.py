@@ -52,6 +52,11 @@ SLOTS = (
 # These may lack an action's sheet (a sword has no climb frames) and are then
 # simply not drawn. A missing sheet for anything else leaves that action out,
 # so a shirt never vanishes halfway through an animation.
+# Body-part class of each slot, recorded per pixel while stacking layers (Phase 2).
+PARTS = ("none", "skin", "head", "hair", "headwear", "torso", "arms", "legs", "feet", "held", "other")
+SLOT_PART = {"body": 1, "head": 2, "eyes": 2, "beard": 2, "hair": 3, "hat": 4, "torso": 5, "torso_over": 5,
+             "cape": 5, "arms": 6, "legs": 7, "feet": 8, "weapon": 9, "shield": 9, "waist": 10, "backpack": 10,
+             "neck": 10}
 OPTIONAL_SLOTS = {"weapon", "shield", "backpack", "cape", "neck", "arms", "beard", "waist", "hat", "eyes"}
 
 
@@ -71,6 +76,7 @@ class Composed:
     choices: list[Choice]
     sheets: dict[str, np.ndarray]  # action -> uint8 [dirs, frames, 64, 64, 4]
     skipped: dict[str, str]  # action -> why it was left out
+    parts: dict[str, np.ndarray] = field(default_factory=dict)  # action -> uint8 [dirs, frames, 64, 64]
 
     def credits(self) -> list[dict]:
         return [{"item": ch.item.id, **c} for ch in self.choices for c in ch.item.credits_for(self.body_type)]
@@ -232,14 +238,14 @@ class Composer:
             sample = _load(self._file(folder, "walk", ch.variant)) if folder else None
             ch.colors = self._pick_colors(rng, ch.item, sample, skin)
 
-        sheets, skipped = {}, {}
+        sheets, skipped, parts = {}, {}, {}
         for action in actions:
             result = self._render(action, body_type, head, choices)
             if isinstance(result, str):
                 skipped[action] = result
             else:
-                sheets[action] = result
-        return Composed(body_type, skin, choices, sheets, skipped)
+                sheets[action], parts[action] = result
+        return Composed(body_type, skin, choices, sheets, skipped, parts)
 
     def _render(self, action: str, body_type: str, head: Item | None, choices: list[Choice]):
         base = _load(self._file(self._folder(choices[0].item, 0, body_type, head), action, None))
@@ -255,11 +261,14 @@ class Composer:
                     if ch.slot in OPTIONAL_SLOTS or li > 0:
                         continue
                     return f"{ch.slot} {ch.item.id} has no matching sheet"
-                draws.append((layer.z, len(draws), self._apply_colors(img, ch)))
+                draws.append((layer.z, len(draws), self._apply_colors(img, ch), SLOT_PART.get(ch.slot, 10)))
         sheet = np.zeros((h, w, 4), np.uint8)
-        for _, _, img in sorted(draws, key=lambda d: (d[0], d[1])):
+        part = np.zeros((h, w), np.uint8)
+        for _, _, img, pid in sorted(draws, key=lambda d: (d[0], d[1])):
             m = img[..., 3] > 0  # pixel art: a drawn pixel replaces what is below
             sheet[m, :3] = img[m, :3]
             sheet[m, 3] = 255
+            part[m] = pid
         rows, cols = h // FRAME, w // FRAME
-        return sheet.reshape(rows, FRAME, cols, FRAME, 4).transpose(0, 2, 1, 3, 4)
+        return (sheet.reshape(rows, FRAME, cols, FRAME, 4).transpose(0, 2, 1, 3, 4),
+                part.reshape(rows, FRAME, cols, FRAME).transpose(0, 2, 1, 3))

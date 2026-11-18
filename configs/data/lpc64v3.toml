@@ -1,0 +1,17 @@
+# Dataset v3: exactly the lpc64v2 characters (same seed, byte-identical atlases)
+# plus a body-part map per character (parts/, sources/lpc/compose.PARTS) for Phase 2.
+name = "lpc64v3"
+source = "lpc"
+size = 64
+characters = 20000              # train + validation + test
+seed = 2
+licenses = "permissive"         # CC0 / CC-BY / OGA-BY only; see docs/decisions 0002
+
+[splits]
+validation = 0.03
+test = 0.03
+unseen_items = 0.05
+unseen_characters = 1000
+
+[source_options]
+root = "data/raw/lpc"

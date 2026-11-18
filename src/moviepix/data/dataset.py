@@ -18,7 +18,8 @@ import torch
 from torch.utils.data import Dataset
 
 from moviepix import actions as A
-from moviepix.data.atlas import load_png, unpack
+from moviepix.data.atlas import load_gray, load_png, unpack, unpack_parts
+from moviepix.data.augment import augment
 from moviepix.models.interface import Batch
 from moviepix.utils.io import read_jsonl
 
@@ -36,11 +37,14 @@ def _direction(action: str, row: int) -> str:
     return A.get(action).directions[row]
 
 
-def make_example(sheets: dict, action: str, row: int, size: int) -> dict:
+def make_example(sheets: dict, action: str, row: int, size: int, keep: np.ndarray | None = None) -> dict:
+    """keep: optional frame indices of the action to use (fewer-frame animations)."""
     direction = _direction(action, row)
     walk_row = A.DIRECTIONS.index(direction)
     reference = sheets["walk"][walk_row, 0]
     frames = sheets[action][row]
+    if keep is not None:
+        frames = frames[keep]
     t = frames.shape[0]
     target = np.zeros((A.MAX_FRAMES, size, size, 4), np.uint8)
     target[:t] = frames
@@ -87,6 +91,11 @@ class _Base(Dataset):
     def _sheets(self, entry: dict) -> dict:
         return unpack(load_png(self.root / entry["atlas"]), entry["layout"], self.size)
 
+    def _parts(self, entry: dict) -> dict | None:
+        if "parts" not in entry:
+            return None
+        return unpack_parts(load_gray(self.root / entry["parts"]), entry["layout"], self.size)
+
     def _wanted(self, entry: dict) -> list[tuple[str, int]]:
         ex = _examples_of(entry)
         return [x for x in ex if self.actions is None or x[0] in self.actions]
@@ -95,11 +104,14 @@ class _Base(Dataset):
 class TrainSet(_Base):
     """Item i = `per_character` random examples from character i (use collate_groups)."""
 
-    def __init__(self, root, split="train", actions=None, per_character: int = 4, seed: int = 0):
+    def __init__(self, root, split="train", actions=None, per_character: int = 4, seed: int = 0,
+                 augment: float = 0.0, subsample: float = 0.0):
         super().__init__(root, split, actions)
         self.per_character = per_character
         self.seed = seed
         self.epoch = 0
+        self.augment = augment  # share of characters that get style transforms (data/augment.py)
+        self.subsample = subsample  # share of walk/run examples cut to 3-4 evenly spaced frames
 
     def __len__(self) -> int:
         return len(self.entries)
@@ -110,7 +122,18 @@ class TrainSet(_Base):
         options = self._wanted(entry)
         picks = rng.choice(len(options), size=min(self.per_character, len(options)), replace=False)
         sheets = self._sheets(entry)
-        return [make_example(sheets, *options[p], self.size) for p in picks]
+        if self.augment > 0:
+            sheets, _ = augment(sheets, self._parts(entry), rng, self.augment)
+        out = []
+        for p in picks:
+            action, row = options[p]
+            keep = None
+            n = sheets[action].shape[1]
+            if action in ("walk", "run") and n >= 6 and rng.random() < self.subsample:
+                m = int(rng.integers(3, 5))
+                keep = np.round(np.linspace(1, n, m, endpoint=False)).astype(int)  # skip the standing frame 0
+            out.append(make_example(sheets, action, row, self.size, keep))
+        return out
 
 
 class EvalSet(_Base):

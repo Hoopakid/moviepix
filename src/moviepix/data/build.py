@@ -48,16 +48,22 @@ def _make(task):
     if ch is None:
         return None
     img, layout = atlas_mod.pack(ch.sheets)
-    return ch.id, atlas_mod.encode_png(img), layout, ch.attributes, ch.credits
+    parts = atlas_mod.encode_gray(atlas_mod.pack_parts(ch.parts)) if ch.parts else None
+    return ch.id, atlas_mod.encode_png(img), layout, ch.attributes, ch.credits, parts
 
 
 def _write(out: Path, n: int, result, split: str, size: int) -> tuple[dict, list]:
-    cid, png, layout, attributes, credits = result
+    cid, png, layout, attributes, credits, parts = result
     rel = Path("atlas") / f"{n // 1000:03d}" / f"{cid}.png"
     (out / rel).parent.mkdir(parents=True, exist_ok=True)
     (out / rel).write_bytes(png)
-    return {"id": cid, "split": split, "atlas": str(rel), "size": size, "layout": layout,
-            "attributes": attributes}, credits
+    entry = {"id": cid, "split": split, "atlas": str(rel), "size": size, "layout": layout, "attributes": attributes}
+    if parts is not None:
+        prel = Path("parts") / rel.relative_to("atlas")
+        (out / prel).parent.mkdir(parents=True, exist_ok=True)
+        (out / prel).write_bytes(parts)
+        entry["parts"] = str(prel)
+    return entry, credits
 
 
 def build_from_source(cfg: dict, out: Path, workers: int) -> dict:
@@ -114,10 +120,16 @@ def _write_credits(path: Path, rows) -> None:
 
 
 def _derive_one(task):
-    src, dst, factor = task
+    src, dst, factor, psrc, pdst = task
     img = atlas_mod.load_png(src)
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    Path(dst).write_bytes(atlas_mod.encode_png(downscale(img, factor)))
+    if psrc is None:
+        Path(dst).write_bytes(atlas_mod.encode_png(downscale(img, factor)))
+        return
+    small, parts = downscale(img, factor, labels=atlas_mod.load_gray(psrc))
+    Path(dst).write_bytes(atlas_mod.encode_png(small))
+    Path(pdst).parent.mkdir(parents=True, exist_ok=True)
+    Path(pdst).write_bytes(atlas_mod.encode_gray(parts))
 
 
 def build_derived(cfg: dict, out: Path, workers: int, built: Path) -> dict:
@@ -126,7 +138,9 @@ def build_derived(cfg: dict, out: Path, workers: int, built: Path) -> dict:
     factor = parent_info["config"]["size"] // cfg["size"]
     entries = read_jsonl(parent / "manifest.jsonl")
     t0 = time.time()
-    tasks = [(str(parent / e["atlas"]), str(out / e["atlas"]), factor) for e in entries]
+    tasks = [(str(parent / e["atlas"]), str(out / e["atlas"]), factor,
+              str(parent / e["parts"]) if "parts" in e else None, str(out / e["parts"]) if "parts" in e else None)
+             for e in entries]
     with Pool(workers) as pool:
         for i, _ in enumerate(pool.imap_unordered(_derive_one, tasks, chunksize=16), 1):
             if i % 2000 == 0:

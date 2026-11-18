@@ -73,3 +73,29 @@ def load_png(path) -> np.ndarray:
     img = np.asarray(Image.open(path).convert("RGBA")).copy()
     img[img[..., 3] == 0] = 0
     return img
+
+
+def pack_parts(parts: dict[str, np.ndarray]) -> np.ndarray:
+    """parts[action] uint8 [dirs, frames, S, S] -> [H, W], same layout as pack()."""
+    img, _ = pack({k: np.repeat(v[..., None], 4, -1) for k, v in parts.items()})
+    return img[..., 0]
+
+
+def unpack_parts(img: np.ndarray, layout: dict, size: int, actions=None) -> dict[str, np.ndarray]:
+    return {k: v[..., 0] for k, v in unpack(np.repeat(img[..., None], 4, -1), layout, size, actions).items()}
+
+
+def encode_gray(img: np.ndarray) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.fromarray(img.astype(np.uint8), "L").save(buf, format="PNG", compress_level=6)
+    return buf.getvalue()
+
+
+def load_gray(path) -> np.ndarray:
+    from PIL import Image
+
+    return np.asarray(Image.open(path).convert("L")).copy()

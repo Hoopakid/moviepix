@@ -55,6 +55,9 @@ DEFAULTS = {
     "cpu_threads": None,
     # Warm start: copy matching weights from this checkpoint before training.
     "init_from": None,
+    # Phase 2 style augmentation (data/augment.py): share of training characters given
+    # 1-3 style transforms, and share of walk/run examples cut to 3-4 frames.
+    "augment": 0.0, "subsample": 0.0,
 }
 
 
@@ -153,7 +156,8 @@ def main(argv=None) -> None:
             "machine": platform.platform(), "torch": torch.__version__, "train": tc,
         })
 
-    train_set = TrainSet(data_root, "train", tc["actions"], per_character=tc["per_character"], seed=tc["seed"])
+    train_set = TrainSet(data_root, "train", tc["actions"], per_character=tc["per_character"], seed=tc["seed"],
+                         augment=tc["augment"], subsample=tc["subsample"])
     val_set = EvalSet(data_root, "validation", tc["actions"], characters=tc["val_characters"],
                       per_character=tc["val_per_character"], seed=tc["seed"])
     val_loader = DataLoader(val_set, batch_size=tc["batch_characters"] * tc["per_character"], collate_fn=collate)

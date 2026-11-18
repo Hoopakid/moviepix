@@ -13,8 +13,11 @@ from __future__ import annotations
 import numpy as np
 
 
-def downscale(img: np.ndarray, factor: int = 2) -> np.ndarray:
-    """uint8 [..., H, W, 4] -> uint8 [..., H/factor, W/factor, 4]."""
+def downscale(img: np.ndarray, factor: int = 2, labels: np.ndarray | None = None):
+    """uint8 [..., H, W, 4] -> uint8 [..., H/factor, W/factor, 4].
+
+    With labels (uint8 [..., H, W], e.g. body parts) also returns the labels of the
+    picked pixels, so every output pixel keeps the label of the colour it took."""
     *lead, h, w, _ = img.shape
     if h % factor or w % factor:
         raise ValueError(f"size {h}x{w} is not divisible by {factor}")
@@ -51,4 +54,10 @@ def downscale(img: np.ndarray, factor: int = 2) -> np.ndarray:
     keep = opaque.sum(1) * 2 >= k
     out[~keep] = 0
     out[keep, 3] = 255
-    return out.reshape(*lead, h // factor, w // factor, 4)
+    out = out.reshape(*lead, h // factor, w // factor, 4)
+    if labels is None:
+        return out
+    lb = labels.reshape(-1, h // factor, factor, w // factor, factor).transpose(0, 1, 3, 2, 4).reshape(-1, k)
+    lab = lb[np.arange(len(lb)), pick].copy()
+    lab[~keep] = 0
+    return out, lab.reshape(*lead, h // factor, w // factor)

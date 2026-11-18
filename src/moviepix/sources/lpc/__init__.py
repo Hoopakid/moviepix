@@ -43,4 +43,5 @@ class LpcSource:
             sheets=composed.sheets,
             attributes=composed.attributes(),
             credits=composed.credits(),
+            parts=composed.parts,
         )

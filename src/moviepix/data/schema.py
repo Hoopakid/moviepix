@@ -54,3 +54,4 @@ class Character:
     sheets: dict[str, np.ndarray]
     attributes: dict
     credits: list[dict]
+    parts: dict[str, np.ndarray] | None = None  # action -> uint8 [dirs, frames, S, S] body-part ids

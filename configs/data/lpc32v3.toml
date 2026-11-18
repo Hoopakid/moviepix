@@ -1,0 +1,4 @@
+# Dataset v3 at 32x32: lpc64v3 downscaled; part maps follow the picked colours.
+name = "lpc32v3"
+derive_from = "lpc64v3"
+size = 32
