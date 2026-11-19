@@ -1,0 +1,16 @@
+
+20261118-1627-c32v2_new
+pack          truth moves  model moves
+puny                0.112        0.482
+ninja               0.284        0.467
+knight              0.325        0.369
+ranger              0.216        0.278
+antifarea           0.350        0.588
+
+20261119-0433-c32v3_aug
+pack          truth moves  model moves
+puny                0.112        0.128
+ninja               0.284        0.154
+knight              0.325        0.094
+ranger              0.216        0.086
+antifarea           0.350        0.165

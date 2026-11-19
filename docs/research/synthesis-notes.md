@@ -177,3 +177,27 @@ c32v2_new (alpha head + self-conditioning 0.4) vs c32v2_control (neither); same 
   in a microbenchmark) landed mid-evaluation: the control-validation timings (9.4 s for 4
   colour rounds) use the old code, the rest the new (≈ same as per-pixel). Results are
   numerically identical.
+
+## Phase 2 — E1: style augmentation (docs/research/e1-eval.log, e1-motion.log)
+c32v3_aug = c32v2_new + augment 0.5 + subsample 0.25 (same budget, same characters).
+
+| | c32v2_new | E1 (aug) |
+|---|---:|---:|
+| LPC validation exact (1-shot, colour) | 0.798 | 0.764 (−3.4) |
+| LPC unseen exact | 0.786 | 0.758 (−2.8) |
+| LPC IoU | 0.974 | 0.965 |
+| OOS gain vs repeat: Puny / Ninja / Knight / Ranger / Antifarea | −6.9 / +6.3 / +5.8 / +5.2 / +8.8 | **+0.3 / +5.5 / +1.0 / +3.0 / +11.9** |
+| OOS IoU vs baseline (Puny / Ninja / Knight / Ranger / Antifarea) | −4.2 / −16.2 / −5.9 / −7.2 / −14.2 pts | **+0.3 / +2.4 / −0.1 / +0.6 / +4.0** |
+| Share of pixels moved vs truth (Puny .11 / Ninja .28 / Knight .33 / Ranger .22 / Anti .35) | .48 / .47 / .37 / .28 / .59 | .13 / .15 / .09 / .09 / .17 |
+
+- **Silhouette collapse fixed**: out-of-style IoU now ≥ baseline on every pack (criterion 3 PASS).
+- **Criterion 2 (beat baseline on every pack) passes only barely** (Puny +0.3).
+- **Criterion 1 FAILS**: −3.4 pts on LPC. Likely cause: half the budget went to augmented
+  characters (fewer plain LPC examples at equal steps) and/or overly hard transforms.
+- **New motion metric explains it**: the v2 model over-moves foreign sprites (repaints 37–59%
+  of pixels where truth changes 11–35%: it redraws them as LPC bodies). E1 under-moves
+  small sprites (9–17%): it learned to be safe, close to copying the still. Puny motion
+  (.13 vs .11) is now right.
+- Interpretation: synthetic augmentation teaches *robustness to shape* but not *how small,
+  differently drawn characters move*. That needs real motion examples in other styles
+  (E3) — and/or more budget so LPC accuracy recovers.
