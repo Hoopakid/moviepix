@@ -1,0 +1,36 @@
+# Phase 2, experiment E1b: gentler augmentation, to win back LPC accuracy lost in E1
+# Same as c32v3_aug (E1) except augment = 0.25 and augment_gentle = true.
+# Pass: LPC validation exact within 1 pt of c32v2_new (0.798) and still beat the
+# repeat-reference baseline on every out-of-style pack (phase2-design.md).
+model = "copy_animator"
+dataset = "lpc32v3"
+
+[model_options]
+channels = [32, 64, 128, 128]
+ref_channels = [32, 64, 128]
+cond_dim = 128
+dim = 64
+frame_heads = 4
+full_mask_prob = 0.25
+self_cond_prob = 0.4
+alpha_head = true
+steps = 4
+loss_chunk = 32
+
+[train]
+device = "auto"
+amp = "bf16"
+batch_characters = 4
+per_character = 4
+steps = 40000
+lr = 3e-4
+warmup = 1000
+seed = 1
+workers = 2
+cpu_threads = 2            # leave CPU cores for other work
+log_every = 100
+val_every = 2000
+mps_memory_fraction = 0.5
+augment = 0.25             # E1 used 0.5 and lost 3.4 pts on LPC validation
+augment_gentle = true      # no chibi x1.75, no size 0.5
+subsample = 0.25           # share of walk/run examples cut to 3-4 frames

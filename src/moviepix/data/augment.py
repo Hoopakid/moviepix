@@ -62,10 +62,10 @@ def _luma(keys):
 
 # ---- transforms ------------------------------------------------------------
 
-def chibi(frames, parts, rng, S):
+def chibi(frames, parts, rng, S, gentle=False):
     """Scale the head group (head, hair, headwear) above the neck by k, about the
     bottom-centre of the face, per frame. Long hair below the neck stays as it is."""
-    k0 = rng.choice([1.25, 1.5, 1.75])
+    k0 = rng.choice([1.25, 1.5] if gentle else [1.25, 1.5, 1.75])
     out, pout = frames.copy(), parts.copy()
     yy, xx = np.mgrid[0:S, 0:S]
     for i in range(len(frames)):
@@ -112,9 +112,9 @@ def short_legs(frames, parts, rng, S, ref):
     return out, pout
 
 
-def size(frames, parts, rng, S, ref):
+def size(frames, parts, rng, S, ref, gentle=False):
     """Shrink the whole character (nearest) about its feet: a smaller sprite in the same canvas."""
-    s = rng.choice([0.5, 0.625, 0.75])
+    s = rng.choice([0.625, 0.75] if gentle else [0.5, 0.625, 0.75])
     a = frames[ref, ..., 3] > 0
     ys, xs = np.nonzero(a)
     if len(ys) == 0:
@@ -200,8 +200,9 @@ def mirror(sheets, parts):
 # ---- entry point -----------------------------------------------------------
 
 def augment(sheets: dict, parts: dict | None, rng: np.random.Generator, prob: float = 0.5,
-            transforms=TRANSFORMS) -> tuple[dict, list[str]]:
+            transforms=TRANSFORMS, gentle: bool = False) -> tuple[dict, list[str]]:
     """With probability `prob`, apply 1-3 random transforms to a whole character.
+    gentle=True drops the extreme settings (chibi x1.75, size 0.5) - experiment E1b.
     Returns (sheets, names of the transforms applied)."""
     if rng.random() >= prob:
         return sheets, []
@@ -226,11 +227,11 @@ def augment(sheets: dict, parts: dict | None, rng: np.random.Generator, prob: fl
         if name not in names:
             continue
         if name == "chibi":
-            flat, pflat = chibi(flat, pflat, rng, S)
+            flat, pflat = chibi(flat, pflat, rng, S, gentle)
         elif name == "short_legs":
             flat, pflat = short_legs(flat, pflat, rng, S, ref)
         elif name == "size":
-            flat, pflat = size(flat, pflat, rng, S, ref)
+            flat, pflat = size(flat, pflat, rng, S, ref, gentle)
         elif name == "posterise":
             flat = posterise(flat, rng)
         elif name == "outline":

@@ -105,13 +105,14 @@ class TrainSet(_Base):
     """Item i = `per_character` random examples from character i (use collate_groups)."""
 
     def __init__(self, root, split="train", actions=None, per_character: int = 4, seed: int = 0,
-                 augment: float = 0.0, subsample: float = 0.0):
+                 augment: float = 0.0, subsample: float = 0.0, augment_gentle: bool = False):
         super().__init__(root, split, actions)
         self.per_character = per_character
         self.seed = seed
         self.epoch = 0
         self.augment = augment  # share of characters that get style transforms (data/augment.py)
         self.subsample = subsample  # share of walk/run examples cut to 3-4 evenly spaced frames
+        self.augment_gentle = augment_gentle  # no extreme transform settings (E1b)
 
     def __len__(self) -> int:
         return len(self.entries)
@@ -123,7 +124,7 @@ class TrainSet(_Base):
         picks = rng.choice(len(options), size=min(self.per_character, len(options)), replace=False)
         sheets = self._sheets(entry)
         if self.augment > 0:
-            sheets, _ = augment(sheets, self._parts(entry), rng, self.augment)
+            sheets, _ = augment(sheets, self._parts(entry), rng, self.augment, gentle=self.augment_gentle)
         out = []
         for p in picks:
             action, row = options[p]
