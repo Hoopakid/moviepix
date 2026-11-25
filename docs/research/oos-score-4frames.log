@@ -1,0 +1,52 @@
+
+20261118-1627-c32v2_new  (asked for 4 frames)
+pack       action  seqs units |    mF1  nudge nudge* |  exact  still |    iou  still |  moved  truth
+puny       walk      40     5 |  0.218  0.202  0.283 |  0.465  0.797 |  0.642  0.877 |  0.617  0.236
+ninja      walk      91    23 |  0.454  0.480  0.853 |  0.463  0.497 |  0.624  0.858 |  0.615  0.547
+knight     walk       4     1 |  0.519  0.661  0.665 |  0.592  0.665 |  0.704  0.861 |  0.484  0.367
+ranger     walk       4     1 |  0.473  0.475  0.525 |  0.694  0.784 |  0.760  0.898 |  0.410  0.234
+antifarea  walk      48    12 |  0.486  0.431  0.920 |  0.333  0.336 |  0.590  0.775 |  0.725  0.701
+
+20261119-0433-c32v3_aug  (asked for 4 frames)
+pack       action  seqs units |    mF1  nudge nudge* |  exact  still |    iou  still |  moved  truth
+puny       walk      40     5 |  0.348  0.202  0.283 |  0.668  0.797 |  0.866  0.877 |  0.235  0.236
+ninja      walk      91    23 |  0.448  0.480  0.853 |  0.525  0.497 |  0.870  0.858 |  0.209  0.547
+knight     walk       4     1 |  0.372  0.661  0.665 |  0.625  0.665 |  0.838  0.861 |  0.169  0.367
+ranger     walk       4     1 |  0.411  0.475  0.525 |  0.760  0.784 |  0.874  0.898 |  0.142  0.234
+antifarea  walk      48    12 |  0.535  0.431  0.920 |  0.433  0.336 |  0.811  0.775 |  0.281  0.701
+
+20261124-1816-c32v3_gentle  (asked for 4 frames)
+pack       action  seqs units |    mF1  nudge nudge* |  exact  still |    iou  still |  moved  truth
+puny       walk      40     5 |  0.346  0.202  0.283 |  0.653  0.797 |  0.868  0.877 |  0.262  0.236
+ninja      walk      91    23 |  0.455  0.480  0.853 |  0.531  0.497 |  0.864  0.858 |  0.216  0.547
+knight     walk       4     1 |  0.405  0.661  0.665 |  0.620  0.665 |  0.828  0.861 |  0.197  0.367
+ranger     walk       4     1 |  0.480  0.475  0.525 |  0.767  0.784 |  0.874  0.898 |  0.159  0.234
+antifarea  walk      48    12 |  0.528  0.431  0.920 |  0.437  0.336 |  0.810  0.775 |  0.279  0.701
+
+walk motion_f1: difference from 20261118-1627-c32v2_new, paired by character design, 95% interval
+  20261119-0433-c32v3_aug
+    puny       +0.130  [+0.112, +0.147]  (5 designs)
+    ninja      -0.006  [-0.030, +0.019]  (23 designs)
+    knight     -0.147  (1 design(s): too few for an interval)
+    ranger     -0.062  (1 design(s): too few for an interval)
+    antifarea  +0.049  [+0.018, +0.080]  (12 designs)
+  20261124-1816-c32v3_gentle
+    puny       +0.128  [+0.104, +0.159]  (5 designs)
+    ninja      +0.001  [-0.027, +0.031]  (23 designs)
+    knight     -0.114  (1 design(s): too few for an interval)
+    ranger     +0.007  (1 design(s): too few for an interval)
+    antifarea  +0.042  [+0.018, +0.066]  (12 designs)
+
+walk exact: difference from 20261118-1627-c32v2_new, paired by character design, 95% interval
+  20261119-0433-c32v3_aug
+    puny       +0.203  [+0.159, +0.254]  (5 designs)
+    ninja      +0.062  [+0.044, +0.080]  (23 designs)
+    knight     +0.032  (1 design(s): too few for an interval)
+    ranger     +0.066  (1 design(s): too few for an interval)
+    antifarea  +0.100  [+0.076, +0.123]  (12 designs)
+  20261124-1816-c32v3_gentle
+    puny       +0.188  [+0.162, +0.225]  (5 designs)
+    ninja      +0.068  [+0.050, +0.086]  (23 designs)
+    knight     +0.028  (1 design(s): too few for an interval)
+    ranger     +0.073  (1 design(s): too few for an interval)
+    antifarea  +0.103  [+0.083, +0.121]  (12 designs)

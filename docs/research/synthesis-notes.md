@@ -225,3 +225,30 @@ c32v3_gentle = E1 with augment 0.25 and no chibi ×1.75 / size 0.5. One seed, sa
 - Caveats: the score takes the best of all predicted frames, so a model that copies the still scores at or near
   baseline; Knight and Ranger are one character each (14 frames); the same 5 packs were used to pick
   between runs. Design section 4 (phase-aligned scoring) was planned before these runs and is not done yet.
+
+## Phase 2a — scoring v2 (scripts/oos_score.py, src/moviepix/eval/motion.py; oos-score.log, oos-score-4frames.log)
+Replaces the best-frame score. Frames are matched in order (one cyclic phase per walk), only truth frames that
+move are scored, ±1 px tolerance on changed pixels, and standing still scores 0 motion F1. Baselines: still;
+nudge (whole sprite up 1 px, fixed rule); nudge* (best of 4 directions, peeks at the truth). Decided on one E1b
+smoke run before the four models were compared: the standing-frame rule was changed then, because short cycles
+contain standing frames and an LPC walk cycle does not.
+
+Walk motion F1 | nudge | nudge* | control | c32v2_new | E1 | E1b
+---|---:|---:|---:|---:|---:|---:
+Puny (5 designs) | .202 | .283 | .255 | .268 | .343 | **.393**
+Ninja (23) | .480 | .853 | **.536** | .465 | .488 | .476
+Knight (1) | .661 | .665 | .493 | .512 | .378 | .424
+Ranger (1) | .475 | .525 | .522 | **.528** | .453 | .486
+Antifarea (12) | .431 | .920 | **.598** | .501 | .563 | .566
+LPC validation (40) | .353 | .444 | .780 | **.801** | .764 | .783
+
+Walk exact minus still (pts): E1b Puny −7.0, Ninja +3.9, Knight −3.7, Ranger −1.5, Antifarea +12.1.
+- **The old "positive gain on all five packs" was a best-of-frames artefact.** In order, E1b loses to the still
+  sprite on exact pixels on Puny, Knight and Ranger.
+- **In Ninja and Antifarea, 84–87% of each walking pose is a 1 px shift of the whole sprite** (a bob). No model
+  comes close to nudge*; only Puny beats the nudges clearly (E1b .393 vs .283), with Ranger about tied.
+- E1b vs c32v2_new (motion F1, paired by design, 95% interval over designs, not over training seeds): Puny +.125
+  [.109, .145], Antifarea +.065 [.041, .090], Ninja +.011 [−.015, +.038], LPC −.018 [−.022, −.015].
+- Attacks and hurt: no model beats the nudge on Puny; mixed on Chasersgaming (weapons appear that the
+  reference does not show). Reported only.
+- Asking for 4 frames instead of 9 does not change the ranking.

@@ -110,3 +110,16 @@ parameters drawn once per character, so the target stays an exact pixel-art anim
   augmented dataset variant.
 - Can 64 px models learn small sprites from size augmentation alone, or do they need a
   size/scale input?
+
+## Update 2026-11-25 — pass marks for E3 (PROPOSED, frozen once agreed, before E3 trains)
+
+Scored with scripts/oos_score.py (dev packs) and the LPC decode evaluation. Reference run: E1b.
+1. **LPC:** validation exact (256 examples, 1-shot, colour) >= 0.772, i.e. at most 1 point below E1b (0.782).
+2. **Motion:** walk motion F1 above E1b on Puny, Ninja and Antifarea, with a 95% paired interval above 0 on at
+   least two of the three, and above the fixed nudge on all three. Knight and Ranger (one character each) are
+   reported and must not fall by more than 0.05.
+3. **Appearance:** walk exact >= the still sprite on at least 4 of 5 packs; IoU >= still - 0.02 on all 5.
+4. **Seeds:** the result must hold for two training seeds.
+5. **Final test:** the held-out artists are scored once, after 1-4 are decided.
+
+The nudge* bound and the attack/hurt actions are reported, not required. E2 (aux part head) is optional, after E3.
