@@ -201,3 +201,27 @@ c32v3_aug = c32v2_new + augment 0.5 + subsample 0.25 (same budget, same characte
 - Interpretation: synthetic augmentation teaches *robustness to shape* but not *how small,
   differently drawn characters move*. That needs real motion examples in other styles
   (E3) — and/or more budget so LPC accuracy recovers.
+
+## Phase 2 — E1b: gentler augmentation (docs/research/e1b-eval.log, oos-walk-e1b.json)
+c32v3_gentle = E1 with augment 0.25 and no chibi ×1.75 / size 0.5. One seed, same held-out characters.
+
+| | control | c32v2_new | E1 | E1b |
+|---|---:|---:|---:|---:|
+| LPC validation exact (1-shot, colour, 256 examples) | 0.768 | 0.798 | 0.764 | 0.782 |
+| LPC unseen exact | 0.759 | 0.786 | 0.758 | 0.773 |
+| LPC validation exact, training log's own sample | 0.775 | 0.797 | 0.769 | 0.789 |
+| OOS exact gain: Puny / Ninja / Knight / Ranger / Antifarea | −5.8 / +7.1 / +4.4 / +4.8 / +13.6 | −6.9 / +6.3 / +5.8 / +5.2 / +8.8 | +0.3 / +5.5 / +1.0 / +3.0 / +11.9 | +0.0 / +6.0 / +0.8 / +2.5 / +13.3 |
+| OOS IoU minus baseline (pts) | −8.0 / −11.0 / −8.3 / −5.7 / −8.3 | −4.1 / −16.2 / −5.9 / −7.2 / −14.2 | +0.4 / +2.4 / −0.2 / +0.6 / +4.0 | +0.4 / +2.0 / +0.4 / −0.2 / +3.5 |
+| OOS share of pixels moved (truth .11/.28/.33/.22/.35) | – | .48/.47/.37/.28/.59 | .13/.15/.09/.09/.17 | .15/.16/.11/.09/.16 |
+
+- Criterion 1, as written (within 1 pt of **the control**, 0.768): E1b passes (+1.4); E1 passes too (−0.4).
+  Against the stricter bar used in the E1 notes and the E1b config (within 1 pt of c32v2_new, i.e. ≥ 0.788):
+  E1b misses by 0.6 pt. **Correction:** the E1 section's "criterion 1 FAILS" used c32v2_new, not the control.
+- Criterion 2 (exact AND IoU above baseline on every pack): **not met by E1 or E1b**. E1b: Ranger IoU −0.2,
+  Puny exact tied (+0.002 pt). **Correction:** the E1 section said IoU ≥ baseline everywhere; Knight was −0.2.
+- Criterion 3 (IoU ≥ baseline − 0.02): met by both.
+- Exact gain is not better than the un-augmented control on Ninja, Knight, Ranger or Antifarea. The augmentation
+  win is Puny plus the silhouettes. Both E1 and E1b under-move every pack except Puny.
+- Caveats: the score takes the best of all predicted frames, so a model that copies the still scores at or near
+  baseline; Knight and Ranger are one character each (14 frames); the same 5 packs were used to pick
+  between runs. Design section 4 (phase-aligned scoring) was planned before these runs and is not done yet.

@@ -1,0 +1,75 @@
+=== decode E1b validation
+256 examples, lpc32v3, validation
+variant                  exact     iou  speck+  d_rec d_prec    sec
+1 confidence  pixel    0.7724  0.9683   -4.62  0.804  0.789    3.4
+1 confidence  colour   0.7816  0.9683   -9.59  0.795  0.821    3.0
+4 confidence  pixel    0.7724  0.9684   -4.65  0.804  0.788    5.6
+4 confidence  colour   0.7816  0.9684   -9.60  0.795  0.821    5.7
+4 random      pixel    0.7717  0.9676   -4.92  0.803  0.788    5.5
+4 random      colour   0.7813  0.9677   -9.84  0.794  0.820    5.7
+8 confidence  pixel    0.7703  0.9678   -4.84  0.801  0.790    8.9
+8 confidence  colour   0.7798  0.9678   -9.75  0.793  0.820    9.3
+=== decode E1b unseen
+256 examples, lpc32v3, unseen
+variant                  exact     iou  speck+  d_rec d_prec    sec
+1 confidence  pixel    0.7652  0.9664   -7.35  0.808  0.807    3.2
+1 confidence  colour   0.7732  0.9664  -11.96  0.797  0.837    3.0
+4 confidence  pixel    0.7651  0.9666   -7.31  0.808  0.807    5.6
+4 confidence  colour   0.7735  0.9665  -11.97  0.797  0.836    5.8
+4 random      pixel    0.7641  0.9657   -7.58  0.806  0.806    5.6
+4 random      colour   0.7721  0.9656  -12.16  0.796  0.836    5.7
+8 confidence  pixel    0.7623  0.9655   -7.35  0.807  0.808    9.5
+8 confidence  colour   0.7713  0.9657  -12.03  0.796  0.837   10.6
+=== out-of-style walk
+
+20261118-1627-c32v2_new  (model trained on lpc32v2)
+pack               frames   exact    base    gain    iou   base
+puny                   80   0.738   0.807  -0.069  0.840  0.882
+ninja                 193   0.566   0.502  +0.063  0.698  0.860
+knight                 14   0.714   0.655  +0.058  0.797  0.856
+ranger                 14   0.823   0.772  +0.052  0.820  0.892
+antifarea              96   0.424   0.336  +0.088  0.633  0.775
+LPC (in-style)       1280   0.810   0.629  +0.181  0.967  0.879
+
+20261119-0433-c32v3_aug  (model trained on lpc32v3)
+pack               frames   exact    base    gain    iou   base
+puny                   80   0.810   0.807  +0.003  0.885  0.882
+ninja                 193   0.557   0.502  +0.055  0.884  0.860
+knight                 14   0.665   0.655  +0.010  0.855  0.856
+ranger                 14   0.801   0.772  +0.030  0.898  0.892
+antifarea              96   0.454   0.336  +0.119  0.815  0.775
+LPC (in-style)       1280   0.784   0.629  +0.155  0.955  0.879
+
+20261124-1816-c32v3_gentle  (model trained on lpc32v3)
+pack               frames   exact    base    gain    iou   base
+puny                   80   0.807   0.807  +0.000  0.885  0.882
+ninja                 193   0.562   0.502  +0.060  0.880  0.860
+knight                 14   0.663   0.655  +0.008  0.860  0.856
+ranger                 14   0.796   0.772  +0.025  0.890  0.892
+antifarea              96   0.469   0.336  +0.133  0.809  0.775
+LPC (in-style)       1280   0.797   0.629  +0.168  0.960  0.879
+=== motion (share of pixels changed from the reference)
+
+20261118-1627-c32v2_new
+pack          truth moves  model moves
+puny                0.112        0.482
+ninja               0.284        0.467
+knight              0.325        0.369
+ranger              0.216        0.278
+antifarea           0.350        0.588
+
+20261119-0433-c32v3_aug
+pack          truth moves  model moves
+puny                0.112        0.128
+ninja               0.284        0.154
+knight              0.325        0.094
+ranger              0.216        0.086
+antifarea           0.350        0.165
+
+20261124-1816-c32v3_gentle
+pack          truth moves  model moves
+puny                0.112        0.152
+ninja               0.284        0.156
+knight              0.325        0.113
+ranger              0.216        0.093
+antifarea           0.350        0.161
