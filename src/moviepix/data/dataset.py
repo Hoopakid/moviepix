@@ -20,6 +20,7 @@ from torch.utils.data import Dataset
 from moviepix import actions as A
 from moviepix.data.atlas import load_gray, load_png, unpack, unpack_parts
 from moviepix.data.augment import augment
+from moviepix.data.heldout import check_manifest
 from moviepix.models.interface import Batch
 from moviepix.utils.io import read_jsonl
 
@@ -105,7 +106,8 @@ class TrainSet(_Base):
     """Item i = `per_character` random examples from character i (use collate_groups)."""
 
     def __init__(self, root, split="train", actions=None, per_character: int = 4, seed: int = 0,
-                 augment: float = 0.0, subsample: float = 0.0, augment_gentle: bool = False):
+                 augment: float = 0.0, subsample: float = 0.0, augment_gentle: bool = False,
+                 extra=None, extra_share: float = 0.0):
         super().__init__(root, split, actions)
         self.per_character = per_character
         self.seed = seed
@@ -113,24 +115,38 @@ class TrainSet(_Base):
         self.augment = augment  # share of characters that get style transforms (data/augment.py)
         self.subsample = subsample  # share of walk/run examples cut to 3-4 evenly spaced frames
         self.augment_gentle = augment_gentle  # no extreme transform settings (E1b)
+        # Real characters in other styles (E3): a second built dataset that supplies this
+        # share of the training characters. Its artists are checked against data/heldout.py.
+        self.extra = _Base(extra, "train", actions) if extra is not None and extra_share > 0 else None
+        self.extra_share = extra_share
+        if self.extra is not None:
+            check_manifest(self.extra.entries)
+            if self.extra.size != self.size:
+                raise ValueError(f"extra dataset is {self.extra.size} px, main is {self.size} px")
 
     def __len__(self) -> int:
         return len(self.entries)
 
     def __getitem__(self, i: int) -> list[dict]:
-        entry = self.entries[i]
         rng = np.random.default_rng([self.seed, self.epoch, i])
-        options = self._wanted(entry)
+        base, entry = self, self.entries[i]
+        if self.extra is not None and rng.random() < self.extra_share:
+            base, entry = self.extra, self.extra.entries[int(rng.integers(len(self.extra.entries)))]
+        options = base._wanted(entry)
         picks = rng.choice(len(options), size=min(self.per_character, len(options)), replace=False)
-        sheets = self._sheets(entry)
+        if len(picks) < self.per_character:  # a pack character may have few sequences: repeat some
+            picks = rng.choice(len(options), size=self.per_character, replace=True)
+        sheets = base._sheets(entry)
         if self.augment > 0:
-            sheets, _ = augment(sheets, self._parts(entry), rng, self.augment, gentle=self.augment_gentle)
+            sheets, _ = augment(sheets, base._parts(entry), rng, self.augment, gentle=self.augment_gentle)
         out = []
         for p in picks:
             action, row = options[p]
             keep = None
             n = sheets[action].shape[1]
-            if action in ("walk", "run") and n >= 6 and rng.random() < self.subsample:
+            if action in entry.get("leading_stand", ()):  # frame 0 is only the reference, not part of the cycle
+                keep = np.arange(1, n)
+            elif action in ("walk", "run") and n >= 6 and rng.random() < self.subsample:
                 m = int(rng.integers(3, 5))
                 keep = np.round(np.linspace(1, n, m, endpoint=False)).astype(int)  # skip the standing frame 0
             out.append(make_example(sheets, action, row, self.size, keep))

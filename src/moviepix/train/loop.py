@@ -58,6 +58,8 @@ DEFAULTS = {
     # Phase 2 style augmentation (data/augment.py): share of training characters given
     # 1-3 style transforms, and share of walk/run examples cut to 3-4 frames.
     "augment": 0.0, "subsample": 0.0, "augment_gentle": False,
+    # E3: a second built dataset (real packs) and the share of training characters it supplies
+    "extra_dataset": None, "extra_share": 0.0,
 }
 
 
@@ -158,7 +160,9 @@ def main(argv=None) -> None:
 
     train_set = TrainSet(data_root, "train", tc["actions"], per_character=tc["per_character"], seed=tc["seed"],
                          augment=tc["augment"], subsample=tc["subsample"],
-                         augment_gentle=tc["augment_gentle"])
+                         augment_gentle=tc["augment_gentle"],
+                         extra=args.built / tc["extra_dataset"] if tc["extra_dataset"] else None,
+                         extra_share=tc["extra_share"])
     val_set = EvalSet(data_root, "validation", tc["actions"], characters=tc["val_characters"],
                       per_character=tc["val_per_character"], seed=tc["seed"])
     val_loader = DataLoader(val_set, batch_size=tc["batch_characters"] * tc["per_character"], collate_fn=collate)

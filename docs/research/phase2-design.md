@@ -111,7 +111,7 @@ parameters drawn once per character, so the target stays an exact pixel-art anim
 - Can 64 px models learn small sprites from size augmentation alone, or do they need a
   size/scale input?
 
-## Update 2026-11-25 — pass marks for E3 (PROPOSED, frozen once agreed, before E3 trains)
+## Update 2026-11-25 — pass marks for E3 (FROZEN 2026-11-26, agreed before E3 data was collected)
 
 Scored with scripts/oos_score.py (dev packs) and the LPC decode evaluation. Reference run: E1b.
 1. **LPC:** validation exact (256 examples, 1-shot, colour) >= 0.772, i.e. at most 1 point below E1b (0.782).
@@ -123,3 +123,6 @@ Scored with scripts/oos_score.py (dev packs) and the LPC decode evaluation. Refe
 5. **Final test:** the held-out artists are scored once, after 1-4 are decided.
 
 The nudge* bound and the attack/hurt actions are reported, not required. E2 (aux part head) is optional, after E3.
+
+Final-test artists (never trained on, scored once): ansimuz, GibbonGL, Gamekrazzy, Hormelz (CC0); Robocelot, AxulArt
+(CC-BY, with credit, final test only). Training artists: Ordinary Bumblebee, Lexlom, Foozle, JIK-A-4.
