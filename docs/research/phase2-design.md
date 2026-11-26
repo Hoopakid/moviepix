@@ -136,11 +136,12 @@ Final-test artists (never trained on, scored once): ansimuz, GibbonGL, Gamekrazz
 |---|---|---|---|---|
 | Ordinary Bumblebee | 32x32 Customizable Character Pack | 12 composed looks (one base design) | walk 4, idle 4, run 4, jump 3, hurt 3 | 1x; reference = idle frame 0 |
 | Ordinary Bumblebee | 8 Direction Walk Cycle | 2 colours (one design) | walk 8 | 45 px tall, shrunk 2x; standing frame per direction matched by silhouette |
-| Lexlom | 32 Free animated characters | 32 designs | walk [step, stand, step, stand] | 29 of 32 shrunk 2x (36-40 px tall); left side is the mirrored right side |
-| Foozle (drawn by Baldur) | Lucifer series, 9 of 12 packs | 9 designs | walk or run 6-8, idle, jump, hurt, climb | 7 shrunk 2x; 2 at 1x with a too-big jump/hurt dropped; Walk/Run file names are mixed per direction, so the cycle is named by majority |
+| Lexlom | 32 Free animated characters | 32 designs | walk [step, stand, step, stand] | 25 of 32 shrunk 2x (36-40 px tall); left side is the mirrored right side |
+| Foozle (drawn by Baldur) | Lucifer series, 9 of 12 packs | 9 designs | walk or run 6-8, idle, jump, hurt, climb | 6 shrunk 2x; 3 at 1x (too-big jump/hurt dropped where needed); Walk/Run file names are mixed per direction, so the cycle is named by majority |
 | JIK-A-4 | MetroCity 1.0 + 2.0 | 8 composed looks (one base) | run 6 | no standing pose: reference = run frame 0 (`reference_from_cycle`) |
 
-Placement: one integer offset per character, feet of the down-facing reference on (16, 30). Characters that do not
+Placement (`data/packs.py`, shared with the final test): one integer offset per character, feet of the down-facing
+reference on (16, 30); a walk that reaches 1-2 px past the canvas is nudged by up to 2 px. Characters that still do not
 fit at 1x are shrunk 2x with `data/resize.downscale` (the lpc64 -> lpc32 method); nothing is cropped. A 1-frame walk
 is a reference only and never a target (`dataset._examples_of`). Composed looks and recolours share a design.
 Foozle not used: Goblin Rider (a mount, no walk), Skeleton King (walk 4 px below its idle), Skeleton Ancient
@@ -148,4 +149,23 @@ Foozle not used: Goblin Rider (a mount, no walk), Skeleton King (walk 4 px below
 only actions that do not fit are dropped (`dropped_too_big`).
 
 Not used for training: Bumblebee ModelSheet (a single bald model with mixed rows), Lexlom ModelSheet (same).
-Final-test packs are copied and extracted but not built yet (Robocelot template = smooth-sprite.0.2.png + SPRITE.R.aseprite).
+Final-test packs: see the next section.
+
+## Update 2026-11-26 — final32 built (FINAL TEST, never trained on, scored once)
+
+`scripts/build_final32.py` builds `data/built/final32` from `data/raw/e3/final` (not in git). Every entry is split
+`final` (training reads `train` only, tested) and the build refuses any artist not on `FINAL_ARTISTS`. Built by
+looking at the art only; no model has been run on it.
+
+| Artist | Characters | Actions | Notes |
+|---|---|---|---|
+| ansimuz | Faune; Tiny RPG hero, mole, treant (4) | walk (Faune also run) | 1x; side drawn facing right, left mirrored (synthetic, not to be scored); Faune has no idle, reference = walk frame 1 |
+| Gamekrazzy | 1 hero | walk [stand, step, stand, step] | 1x after a 2 px nudge; left and right drawn separately |
+| GibbonGL | 1 Game Boy monkey | walk [stand, step, stand, step] | 1x, 16 px; direction rows matched to the pack's named GIFs |
+| Hormelz | 1 | idle 2, run 2 | 1x, 16 px; walk is the idle reference only |
+| Robocelot (CC-BY) | Gumdrop x10 (one base body, different outfits), Character Template x1 | walk 8, idle, run 8, hurt 3 | about 34 px tall, shrunk 2x; row order from SpriteSheets/flash.json |
+| AxulArt (CC-BY) | template, girl, boy (3) | walk [step, middle, step, middle] | 1x, 16x24; no idle, middle frame is the reference |
+
+21 characters, 6 artists. Robocelot has 11 of the 21, so the final score should be averaged per artist. Not used:
+Gamekrazzy roll and slash (no matching action), Gumdrop attacks/draw/sheath, Tiny RPG attacks, Hormelz attack/block,
+Tiny RPG Mountain (tiles only). A scorer for final32 (in-order motion F1, drawn directions only) is still to write.

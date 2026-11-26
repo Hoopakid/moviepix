@@ -81,3 +81,16 @@ def test_a_one_frame_walk_is_a_reference_only(tmp_path):
     ts = TrainSet(root, per_character=8)
     assert {e["action"] for e in ts[0]} == {A.get("run").id}
     assert all(e["n_frames"] == 6 for e in ts[0])
+
+
+def test_a_final_test_set_cannot_be_trained_on(tmp_path):
+    """data/built/final32 marks every entry split 'final'; training reads split 'train' only."""
+    main, final = tmp_path / "main", tmp_path / "final"
+    write(main, "m0", 9)
+    write(final, "f0", 5, attributes={"artist": "Lexlom"})  # even a training artist's entry
+    lines = (final / "manifest.jsonl").read_text().replace('"split": "train"', '"split": "final"')
+    (final / "manifest.jsonl").write_text(lines)
+    with pytest.raises(ValueError, match="no characters in split 'train'"):
+        TrainSet(final)
+    with pytest.raises(ValueError, match="no characters in split 'train'"):
+        TrainSet(main, extra=final, extra_share=0.1)
