@@ -126,3 +126,24 @@ The nudge* bound and the attack/hurt actions are reported, not required. E2 (aux
 
 Final-test artists (never trained on, scored once): ansimuz, GibbonGL, Gamekrazzy, Hormelz (CC0); Robocelot, AxulArt
 (CC-BY, with credit, final test only). Training artists: Ordinary Bumblebee, Lexlom, Foozle, JIK-A-4.
+
+## Update 2026-11-26 — packs32 built (E3 training data)
+
+`scripts/build_packs32.py` builds `data/built/packs32` from the owner-downloaded packs in `data/raw/e3/train`
+(not in git). 55 characters, all split `train`, artists checked by `data/heldout.py`:
+
+| Artist | Pack | Characters | Actions | Notes |
+|---|---|---|---|---|
+| Ordinary Bumblebee | 32x32 Customizable Character Pack | 12 composed looks (one base design) | walk 4, idle 4, run 4, jump 3, hurt 3 | 1x; reference = idle frame 0 |
+| Ordinary Bumblebee | 8 Direction Walk Cycle | 2 colours (one design) | walk 8 | 45 px tall, shrunk 2x; standing frame per direction matched by silhouette |
+| Lexlom | 32 Free animated characters | 32 designs | walk [step, stand, step, stand] | 29 of 32 shrunk 2x (36-40 px tall); left side is the mirrored right side |
+| Foozle (drawn by Baldur) | Lucifer Warrior | 1 | walk 8, idle 5, jump 5, hurt 4, climb 6 | about 34 px, shrunk 2x |
+| JIK-A-4 | MetroCity 1.0 + 2.0 | 8 composed looks (one base) | run 6 | no standing pose: reference = run frame 0 (`reference_from_cycle`) |
+
+Placement: one integer offset per character, feet of the down-facing reference on (16, 30). Characters that do not
+fit at 1x are shrunk 2x with `data/resize.downscale` (the lpc64 -> lpc32 method); nothing is cropped. A 1-frame walk
+is a reference only and never a target (`dataset._examples_of`). Distinct designs: about 36; the composed looks and
+recolours share a design. Only one of the 13 Foozle packs was downloaded, so Foozle is one character.
+
+Not used for training: Bumblebee ModelSheet (a single bald model with mixed rows), Lexlom ModelSheet (same).
+Final-test packs are copied and extracted but not built yet; the Robocelot template download could not be identified.

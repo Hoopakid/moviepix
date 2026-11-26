@@ -26,9 +26,13 @@ from moviepix.utils.io import read_jsonl
 
 
 def _examples_of(entry: dict) -> list[tuple[str, int]]:
-    """(action, row) pairs available for a character; row indexes the action's directions."""
+    """(action, row) pairs available for a character; row indexes the action's directions.
+
+    A 1-frame action is a reference only (a pack walk with no drawn cycle), never a target."""
     out = []
     for name, spec in entry["layout"].items():
+        if spec["frames"] < 2:
+            continue
         for row in range(spec["dirs"]):
             out.append((name, row))
     return out

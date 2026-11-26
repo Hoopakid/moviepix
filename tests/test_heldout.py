@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pytest
 
+from moviepix import actions as A
 from moviepix.data import atlas
 from moviepix.data.dataset import TrainSet, collate_groups
 from moviepix.data.heldout import DEV_ARTISTS, FINAL_ARTISTS, TRAIN_ARTISTS, check_manifest
@@ -60,3 +61,23 @@ def test_extra_dataset_with_a_held_out_artist_cannot_load(tmp_path):
     write(packs, "p0", 5, attributes={"artist": "ansimuz"})
     with pytest.raises(ValueError, match="held-out"):
         TrainSet(main, extra=packs, extra_share=0.1)
+
+
+def test_a_one_frame_walk_is_a_reference_only(tmp_path):
+    """MetroCity-style characters: walk holds only the reference, so only other actions are targets."""
+    root = tmp_path / "packs"
+    rng = np.random.default_rng(2)
+    walk = np.zeros((4, 1, 32, 32, 4), np.uint8)
+    run = np.zeros((4, 6, 32, 32, 4), np.uint8)
+    for a in (walk, run):
+        a[..., 8:24, 12:20, :3] = rng.integers(0, 255, (*a.shape[:2], 16, 8, 3))
+        a[..., 8:24, 12:20, 3] = 255
+    img, layout = atlas.pack({"walk": walk, "run": run})
+    (root / "atlas").mkdir(parents=True)
+    (root / "atlas" / "m.png").write_bytes(atlas.encode_png(img))
+    (root / "manifest.jsonl").write_text(json.dumps({"id": "m", "split": "train", "atlas": "atlas/m.png", "size": 32,
+                                                     "layout": layout, "leading_stand": [],
+                                                     "attributes": {"artist": "JIK-A-4"}}) + "\n")
+    ts = TrainSet(root, per_character=8)
+    assert {e["action"] for e in ts[0]} == {A.get("run").id}
+    assert all(e["n_frames"] == 6 for e in ts[0])

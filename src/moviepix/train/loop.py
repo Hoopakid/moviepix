@@ -19,7 +19,7 @@ import argparse
 import json
 import math
 import platform
-import shutil
+import re
 import time
 import tomllib
 from datetime import datetime
@@ -104,6 +104,7 @@ def main(argv=None) -> None:
     ap.add_argument("--runs", type=Path, default=Path("data/runs"))
     ap.add_argument("--built", type=Path, default=Path("data/built"))
     ap.add_argument("--steps", type=int, help="override train.steps")
+    ap.add_argument("--seed", type=int, help="override train.seed (a second seed of the same config)")
     ap.add_argument("--name", help="run name (default: config file name)")
     args = ap.parse_args(argv)
 
@@ -111,11 +112,16 @@ def main(argv=None) -> None:
         run = args.resume
         cfg = tomllib.loads((run / "config.toml").read_text())
     elif args.config:
-        cfg = tomllib.loads(args.config.read_text())
+        text = args.config.read_text()
+        if args.seed is not None:  # store the seed in the run's config so --resume keeps it
+            text, n = re.subn(r"(?m)^seed\s*=\s*\d+", f"seed = {args.seed}", text)
+            if n != 1:
+                text = text.replace("[train]", f"[train]\nseed = {args.seed}", 1)
+        cfg = tomllib.loads(text)
         name = args.name or args.config.stem
         run = args.runs / f"{datetime.now():%Y%m%d-%H%M}-{name}"
         run.mkdir(parents=True)
-        shutil.copy(args.config, run / "config.toml")
+        (run / "config.toml").write_text(text)
     else:
         ap.error("give a config or --resume")
     tc = DEFAULTS | cfg.get("train", {})
