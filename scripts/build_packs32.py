@@ -59,30 +59,34 @@ def over(base: np.ndarray, top: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------- placement
-def place(raw: dict, ref_dir: str = "down") -> tuple[dict, int] | None:
-    """raw[action] = [dirs, frames, h, w, 4] native cells -> (sheets on the 32 canvas, scale divisor)."""
+def place(raw: dict, ref_dir: str = "down") -> tuple[dict, int, list] | None:
+    """raw[action] = [dirs, frames, h, w, 4] native cells -> (sheets on the 32 canvas, scale divisor,
+    dropped actions). 1x is kept when the reference and the locomotion (walk or run) fit; other
+    actions that do not fit (a jump, a wide hurt) are dropped rather than shrinking the character."""
+    moves = [a for a in ("walk", "run") if a in raw and raw[a].shape[1] > 1]
     for k in (1, 2):
         sh = raw if k == 1 else {a: downscale(v, 2) for a, v in raw.items()}
         ref = sh["walk"][DIRS.index(ref_dir), 0]
         ys, xs = np.nonzero(ref[..., 3])
         oy = PIVOT[1] - ys.max()
         ox = int(round(PIVOT[0] - (xs.min() + xs.max() + 1) / 2))
-        out, fits = {}, True
+        out = {}
         for a, v in sh.items():
             h, w = v.shape[2:4]
             occ = v[..., 3].reshape(-1, h, w).any(0)
+            if a == "walk" and v.shape[1] == 1:
+                occ = v[DIRS.index(ref_dir), 0, ..., 3] > 0 if not moves else occ
             yy, xx = np.nonzero(occ)
             if yy.min() + oy < 0 or yy.max() + oy >= S or xx.min() + ox < 0 or xx.max() + ox >= S:
-                fits = False
-                break
+                continue
             canvas = np.zeros((*v.shape[:2], S, S, 4), np.uint8)
             y0, x0 = max(oy, 0), max(ox, 0)
             sy, sx = y0 - oy, x0 - ox
             hh, ww = min(h - sy, S - y0), min(w - sx, S - x0)
             canvas[:, :, y0:y0 + hh, x0:x0 + ww] = v[:, :, sy:sy + hh, sx:sx + ww]
             out[a] = canvas
-        if fits:
-            return out, k
+        if moves and "walk" in out and all(m in out for m in moves):
+            return out, k, sorted(set(raw) - set(out))
     return None
 
 
@@ -186,22 +190,75 @@ def lexlom():
             n += 1
 
 
-def foozle_lucifer():
-    """Foozle (commissioned from Baldur), Lucifer Warrior: 48x48 cells, 4 drawn directions."""
-    root = RAW / "foozle-lucifer-warrior/x/Foozle_2DC0009_Lucifer_Warrior_Pixel_Art"
-    names = {"up": "Up", "left": "Left", "down": "Down", "right": "Right"}
+FOOZLE = {  # folder suffix -> (itch.io slug, file prefix); all drawn by Baldur, distributed by Foozle, CC0
+    "lucifer-warrior": ("lucifer-warrior", "Warrior"),
+    "necromancer": ("lucifer-necromancer", "Necromancer"),
+    "sorceress": ("lucifer-sorceress", "Sorceress"),
+    "cultist": ("lucifer-cultist-enemy", "Cultist"),
+    "goblin-berserker": ("lucifer-goblin-berserker-enemy", "Goblin"),
+    "goblin-slinger": ("lucifer-goblin-slinger-enemy", "GoblinSlinger"),
+    "goblin-beast": ("lucifer-goblin-beast-boss", "GoblinBeast"),
+    "skeleton-grunt": ("lucifer-skeleton-grunt-enemy", "SkeletonWithSword"),
+    "skeleton-hunter": ("lucifer-skeleton-hunter-enemy", "SkeletonWithBow"),
+    "skeleton-king": ("lucifer-skeleton-king-boss", "SkeletonKing"),
+    "skeleton-ancient": ("lucifer-skeleton-ancient-boss", "AncientSkeleton"),
+    # Goblin Rider is left out: a goblin on a mount, "Move" sheets rather than a walk.
+}
 
-    def strip(d, act):
-        return cells(rgba(root / names[d] / "Png" / f"Warrior{names[d]}{act}.png"), 48, 48)
-    stand = np.stack([strip(d, "Idle")[0] for d in DIRS])
-    raw = {"walk": with_stand(stand, np.stack([strip(d, "Walk") for d in DIRS])),
-           "idle": np.stack([strip(d, "Idle") for d in DIRS]),
-           "jump": np.stack([strip(d, "Jump") for d in DIRS]),
-           "hurt": strip("down", "Hurt")[None],
-           "climb": strip("up", "Climb")[None]}
-    yield {"id": "foozle-lucifer-warrior", "artist": "foozle", "pack": "Lucifer Warrior (drawn by Baldur)",
-           "url": "https://foozlecc.itch.io/lucifer-warrior", "licence": "CC0-1.0", "design": "foozle-lucifer-warrior",
-           "raw": raw, "synthetic_dirs": []}
+
+def foozle():
+    """Foozle "Lucifer" series: one strip per direction and action, square cells (48 or 80 px),
+    4 drawn directions. Reference = Idle frame 0. Packs drawn with Run and no Walk keep a
+    1-frame walk (the standing reference only) and train on run."""
+    names = {"up": "Up", "left": "Left", "down": "Down", "right": "Right"}
+    acts = {"idle": "Idle", "jump": "Jump", "hurt": "Hurt", "climb": "Climb"}
+    for folder, (slug, prefix) in FOOZLE.items():
+        hits = list((RAW / f"foozle-{folder}/x").glob("*/Down/Png"))
+        if not hits:
+            continue
+        root = hits[0].parent.parent
+
+        def strip(d, act):
+            hits = [f for f in (root / names[d] / "Png").glob("*.png")
+                    if f.stem.lower().endswith(act.lower()) and "attack" not in f.stem.lower()]
+            if not hits:
+                return None
+            img = rgba(sorted(hits)[0])
+            return cells(img, img.shape[0], img.shape[0])
+
+        stand = [strip(d, "Idle") for d in DIRS]
+        if any(x is None for x in stand):
+            continue
+        cell = stand[0].shape[1]
+        stand = np.stack([x[0] for x in stand])
+        raw = {}
+        # The series names one locomotion cycle "Walk" in some directions and "Run" in others
+        # (and has typos like "Leftt"): take Walk else Run per direction, and call the cycle a walk
+        # when most directions say Walk.
+        loco = [(strip(d, "Walk"), "walk") if strip(d, "Walk") is not None else (strip(d, "Run"), "run") for d in DIRS]
+        if all(x is not None for x, _ in loco) and len({x.shape[0] for x, _ in loco}) == 1 \
+                and all(x.shape[1] == cell for x, _ in loco):
+            # the cycle must stand on the same ground line as the idle reference (Skeleton King's
+            # walk sits 4 px lower than its idle, so it is left out)
+            feet = lambda x: np.nonzero(x[..., 3].any(-1).any(0))[0].max()  # noqa: E731
+            if any(abs(feet(x) - feet(st[None])) > 2 for (x, _), st in zip(loco, stand)):
+                continue
+            name = "walk" if sum(n == "walk" for _, n in loco) > 2 else "run"
+            arr = np.stack([x for x, _ in loco])
+            raw[name] = with_stand(stand, arr) if name == "walk" else arr
+        for name, act in acts.items():
+            if name in ("walk", "run"):
+                continue
+            fr = [strip(d, act) for d in A.get(name).directions]
+            if any(x is None or x.shape[1] != cell for x in fr) or len({x.shape[0] for x in fr}) != 1:
+                continue
+            raw[name] = np.stack(fr)
+        if "walk" not in raw and "run" not in raw:
+            continue  # no usable locomotion (Skeleton Ancient: side walks use a different cell size)
+        raw.setdefault("walk", stand[:, None])  # no drawn walk: reference only
+        yield {"id": f"foozle-{folder}", "artist": "foozle", "pack": f"Lucifer {folder.replace('-', ' ').title()} (drawn by Baldur)",
+               "url": f"https://foozlecc.itch.io/{slug}", "licence": "CC0-1.0", "design": f"foozle-{folder}",
+               "raw": raw, "synthetic_dirs": []}
 
 
 def metrocity(rng, n_looks: int):
@@ -245,7 +302,7 @@ def main():
     if a.preview:
         (a.out / "preview").mkdir()
 
-    chars = [*bumblebee_custom(rng, a.bumblebee_looks), *bumblebee_8dir(), *lexlom(), *foozle_lucifer(),
+    chars = [*bumblebee_custom(rng, a.bumblebee_looks), *bumblebee_8dir(), *lexlom(), *foozle(),
              *metrocity(rng, a.metro_looks)]
     manifest, skipped = [], []
     for c in chars:
@@ -253,20 +310,23 @@ def main():
         if placed is None:
             skipped.append(c["id"])
             continue
-        sheets, k = placed
+        sheets, k, dropped = placed
         atlas, layout = pack(sheets)
         path = f"atlas/{c['id']}.png"
         (a.out / path).write_bytes(encode_png(atlas))
         entry = {"id": c["id"], "split": "train", "atlas": path, "size": S, "layout": layout,
                  "leading_stand": ["walk"] if layout["walk"]["frames"] > 1 else [],
                  "attributes": {"artist": c["artist"], "pack": c["pack"], "url": c["url"], "licence": c["licence"],
-                                "design": c["design"], "scale": f"1/{k}", "synthetic_dirs": c["synthetic_dirs"],
+                                "design": c["design"], "scale": f"1/{k}", "dropped_too_big": dropped, "synthetic_dirs": c["synthetic_dirs"],
                                 "reference_from_cycle": c.get("reference_from_cycle", False),
                                 **({"look": c["look"]} if "look" in c else {})}}
         manifest.append(entry)
         if a.preview:
-            rows = [np.concatenate(list(sheets["walk"][r]) + [np.zeros((S, S, 4), np.uint8)] *
-                                   (A.MAX_FRAMES - sheets["walk"].shape[1]), 1) for r in range(4)]
+            # each row: the reference, then the walk cycle (or the run, when walk is reference only)
+            move = sheets["walk"][:, 1:] if sheets["walk"].shape[1] > 1 else sheets["run"]
+            seq = np.concatenate([sheets["walk"][:, :1], move], 1)
+            rows = [np.concatenate(list(seq[r]) + [np.zeros((S, S, 4), np.uint8)] *
+                                   (A.MAX_FRAMES + 1 - seq.shape[1]), 1) for r in range(4)]
             img = np.concatenate(rows, 0)
             bg = np.full_like(img, 255); bg[..., :3] = (200, 200, 210)
             img = np.where(img[..., 3:] > 0, img, bg)
