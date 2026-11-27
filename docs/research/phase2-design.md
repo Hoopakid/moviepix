@@ -186,3 +186,14 @@ Run `data/runs/20261126-2047-c32v3_packs_s1` (40000 steps, commit dd5e109). Log:
 Walk exact rose on every dev pack (Ninja +0.020 with interval above 0). LPC walk motion F1 fell 0.009. The Puny walk moves
 less than the truth (moved 0.133 vs 0.236; E1b 0.171). As frozen, E3 fails mark 2 on seed 1, so mark 4 cannot hold;
 seed 2 was not run. E1b stays the reference model. The final test was not scored.
+
+### Why Puny fell (diagnosis 2026-11-27, no training)
+
+- Where: front and back views (down 0.480 -> 0.308, up 0.513 -> 0.368). In those views E3 mostly copies the standing
+  pose; Puny's one-leg step is missing. Ranger's drop is also mostly the front view.
+- Not the 2x shrink: training pack walks move as much as LPC walks (0.31-0.43 of the character's pixels change per
+  frame vs 0.34-0.46 for LPC; shrunk Lexlom moves as much as full-size Lexlom).
+- Not the frame count: asked for 4 frames (the packs' own length), E3 is still below E1b on Puny (-0.049).
+- Not checkpoint noise: step 38000 (best) and 40000 (last) differ by at most 0.004 on every walk.
+- Open: training-seed noise. Puny walk F1 across earlier runs spans 0.255-0.393 (E1b is the highest), and Knight and
+  Ranger span 0.37-0.53, but those runs also differ in config. A second seed of E1b would measure it.
