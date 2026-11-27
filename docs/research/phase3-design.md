@@ -114,3 +114,10 @@ GIF writer), `serve.py` (127.0.0.1, cross-origin isolation for threads), `README
   Phase 5 decides whether they ship or are replaced by an own sprite.
 
 Step 4 (owner): open the page in Safari and Chrome, see `web/README.md`.
+
+## Step 4 result (2026-11-27): owner browser check
+
+The owner opened the page locally (`python3 web/serve.py`) and reports that everything looks and works as intended.
+No per-browser timings or WebGPU state were recorded. **Phase 3 is done** for the local demo; still open:
+the WebGPU pixel mismatch (WASM is the default and meets the targets), and the Phase 5 release questions
+(hosting the model, the LPC example art).
