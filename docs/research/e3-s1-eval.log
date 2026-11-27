@@ -1,0 +1,66 @@
+=== 1. LPC validation (pass: exact >= 0.772)
+256 examples, lpc32v3, validation
+variant                  exact     iou  speck+  d_rec d_prec    sec
+1 confidence  pixel    0.7666  0.9673   -5.49  0.800  0.785    3.4
+1 confidence  colour   0.7757  0.9673  -10.67  0.790  0.820    3.0
+4 confidence  pixel    0.7663  0.9671   -5.49  0.800  0.783    5.5
+4 confidence  colour   0.7754  0.9670  -10.72  0.789  0.820    5.7
+4 random      pixel    0.7653  0.9662   -5.72  0.798  0.782    5.5
+4 random      colour   0.7747  0.9662  -10.80  0.788  0.819    5.7
+8 confidence  pixel    0.7637  0.9662   -5.66  0.798  0.785    8.9
+8 confidence  colour   0.7733  0.9663  -10.72  0.788  0.820    9.3
+=== 2-3. dev packs, in-order motion and appearance, paired against E1b
+
+20261124-1816-c32v3_gentle
+pack       action  seqs units |    mF1  nudge nudge* |  exact  still |    iou  still |  moved  truth
+puny       walk      40     5 |  0.393  0.202  0.283 |  0.727  0.797 |  0.878  0.877 |  0.171  0.236
+puny       hurt      10     5 |  0.269  0.577  0.577 |  0.138  0.319 |  0.647  0.807 |  0.608  0.699
+puny       shoot     40     5 |  0.264  0.504  0.505 |  0.322  0.446 |  0.738  0.805 |  0.406  0.574
+puny       slash     40     5 |  0.259  0.557  0.557 |  0.287  0.462 |  0.763  0.814 |  0.421  0.564
+ninja      walk      91    23 |  0.476  0.480  0.853 |  0.536  0.497 |  0.865  0.858 |  0.229  0.547
+knight     walk       4     1 |  0.424  0.661  0.665 |  0.628  0.665 |  0.836  0.861 |  0.194  0.367
+knight     climb      1     1 |  0.777  0.763  0.763 |  0.547  0.479 |  0.699  0.640 |  0.462  0.598
+knight     run        4     1 |  0.571  0.622  0.686 |  0.422  0.516 |  0.678  0.734 |  0.479  0.531
+knight     slash      4     1 |  0.314  0.361  0.397 |  0.486  0.555 |  0.673  0.717 |  0.311  0.472
+ranger     walk       4     1 |  0.486  0.475  0.525 |  0.769  0.784 |  0.879  0.898 |  0.158  0.234
+ranger     climb      1     1 |  0.387  0.335  0.335 |  0.631  0.855 |  0.790  0.786 |  0.356  0.247
+ranger     run        4     1 |  0.638  0.534  0.621 |  0.561  0.621 |  0.711  0.757 |  0.476  0.434
+ranger     slash      4     1 |  0.373  0.305  0.428 |  0.491  0.538 |  0.708  0.735 |  0.341  0.492
+antifarea  walk      48    12 |  0.566  0.431  0.920 |  0.457  0.336 |  0.811  0.775 |  0.305  0.701
+LPC        walk     160    40 |  0.783  0.353  0.444 |  0.797  0.629 |  0.960  0.879 |  0.355  0.410
+
+20261126-2047-c32v3_packs_s1
+pack       action  seqs units |    mF1  nudge nudge* |  exact  still |    iou  still |  moved  truth
+puny       walk      40     5 |  0.291  0.202  0.283 |  0.738  0.797 |  0.875  0.877 |  0.133  0.236
+puny       hurt      10     5 |  0.277  0.577  0.577 |  0.147  0.319 |  0.671  0.807 |  0.602  0.699
+puny       shoot     40     5 |  0.242  0.504  0.505 |  0.323  0.446 |  0.745  0.805 |  0.385  0.574
+puny       slash     40     5 |  0.229  0.557  0.557 |  0.296  0.462 |  0.765  0.814 |  0.385  0.564
+ninja      walk      91    23 |  0.518  0.480  0.853 |  0.556  0.497 |  0.866  0.858 |  0.259  0.547
+knight     walk       4     1 |  0.475  0.661  0.665 |  0.645  0.665 |  0.866  0.861 |  0.166  0.367
+knight     climb      1     1 |  0.753  0.763  0.763 |  0.596  0.479 |  0.707  0.640 |  0.430  0.598
+knight     run        4     1 |  0.615  0.622  0.686 |  0.450  0.516 |  0.689  0.734 |  0.484  0.531
+knight     slash      4     1 |  0.322  0.361  0.397 |  0.492  0.555 |  0.683  0.717 |  0.318  0.472
+ranger     walk       4     1 |  0.420  0.475  0.525 |  0.770  0.784 |  0.887  0.898 |  0.125  0.234
+ranger     climb      1     1 |  0.428  0.335  0.335 |  0.592  0.855 |  0.797  0.786 |  0.427  0.247
+ranger     run        4     1 |  0.655  0.534  0.621 |  0.575  0.621 |  0.724  0.757 |  0.485  0.434
+ranger     slash      4     1 |  0.373  0.305  0.428 |  0.498  0.538 |  0.705  0.735 |  0.343  0.492
+antifarea  walk      48    12 |  0.580  0.431  0.920 |  0.467  0.336 |  0.812  0.775 |  0.307  0.701
+LPC        walk     160    40 |  0.773  0.353  0.444 |  0.791  0.629 |  0.959  0.879 |  0.353  0.410
+
+walk motion_f1: difference from 20261124-1816-c32v3_gentle, paired by character design, 95% interval
+  20261126-2047-c32v3_packs_s1
+    puny       -0.101  [-0.127, -0.071]  (5 designs)
+    ninja      +0.042  [+0.030, +0.053]  (23 designs)
+    knight     +0.051  (1 design(s): too few for an interval)
+    ranger     -0.066  (1 design(s): too few for an interval)
+    antifarea  +0.014  [-0.003, +0.030]  (12 designs)
+    LPC        -0.009  [-0.012, -0.007]  (40 designs)
+
+walk exact: difference from 20261124-1816-c32v3_gentle, paired by character design, 95% interval
+  20261126-2047-c32v3_packs_s1
+    puny       +0.011  [-0.018, +0.039]  (5 designs)
+    ninja      +0.020  [+0.014, +0.026]  (23 designs)
+    knight     +0.017  (1 design(s): too few for an interval)
+    ranger     +0.001  (1 design(s): too few for an interval)
+    antifarea  +0.010  [-0.006, +0.025]  (12 designs)
+    LPC        -0.006  [-0.008, -0.005]  (40 designs)

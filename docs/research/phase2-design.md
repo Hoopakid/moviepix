@@ -169,3 +169,20 @@ looking at the art only; no model has been run on it.
 21 characters, 6 artists. Robocelot has 11 of the 21, so the final score should be averaged per artist. Not used:
 Gamekrazzy roll and slash (no matching action), Gumdrop attacks/draw/sheath, Tiny RPG attacks, Hormelz attack/block,
 Tiny RPG Mountain (tiles only). A scorer for final32 (in-order motion F1, drawn directions only) is still to write.
+
+## Update 2026-11-27 — E3 seed 1 result: does not pass
+
+Run `data/runs/20261126-2047-c32v3_packs_s1` (40000 steps, commit dd5e109). Log: `docs/research/e3-s1-eval.log`.
+
+| Mark | Result | |
+|---|---|---|
+| 1. LPC exact >= 0.772 | 0.776 (E1b 0.782) | pass, narrowly |
+| 2. Walk motion F1 vs E1b | Ninja +0.042 [+0.030, +0.053]; Antifarea +0.014 [-0.003, +0.030]; **Puny -0.101 [-0.127, -0.071]** | fail: Puny below E1b, only 1 of 3 intervals above 0 |
+| 2. above the nudge | Puny 0.291 > 0.202, Ninja 0.518 > 0.480, Antifarea 0.580 > 0.431 | pass |
+| 2. Knight / Ranger not down > 0.05 | Knight +0.051, **Ranger -0.066** | fail |
+| 3. exact >= still on 4 of 5 | 2 of 5 (Ninja, Antifarea); E1b is also 2 of 5 | fail (as E1b) |
+| 3. IoU >= still - 0.02 on all 5 | all 5 | pass |
+
+Walk exact rose on every dev pack (Ninja +0.020 with interval above 0). LPC walk motion F1 fell 0.009. The Puny walk moves
+less than the truth (moved 0.133 vs 0.236; E1b 0.171). As frozen, E3 fails mark 2 on seed 1, so mark 4 cannot hold;
+seed 2 was not run. E1b stays the reference model. The final test was not scored.
