@@ -74,3 +74,17 @@ Writes `model.onnx`, `actions.json` (all 15 actions, pivot, colour limit) and `s
 Colour decoding costs ~45 ms over the per-pixel graph (the [T, P, P] softmax and the [P, K] matmul); still inside the
 target. `tests/test_export.py` checks the same parity on a random small model (with and without the alpha head),
 the colour numbering, and actions.json, so it runs without the checkpoint.
+
+## Step 2 result (2026-11-27): smaller files
+
+`python -m moviepix.export.quantize data/runs/20261124-1816-c32v3_gentle --dir web/model` (CPU, ~2 min). Same 256
+validation examples; ships if exact is within 0.005 of fp32.
+
+| File | Size | Exact | Pixels same as fp32 | CPU ms (onnxruntime, 4 threads) | Ships |
+|---|---|---|---|---|---|
+| model.onnx (fp32) | 17.4 MB | 0.7765 | 1 | 95 | yes |
+| model-fp16.onnx | 8.9 MB | 0.7765 | 0.99966 | 117 | yes |
+| model-int8.onnx (dynamic, MatMul + Conv) | 5.1 MB | 0.7749 | 0.99211 | 96 | yes (-0.0016) |
+
+All meet local-first.md (fp16 < 20 MB, int8 < 10 MB). fp16 is slower on CPU (no fp16 kernels); it is meant for
+WebGPU. Page default: int8 on WASM, fp16 on WebGPU, fp32 as a fallback; checked in the browser in step 4.
