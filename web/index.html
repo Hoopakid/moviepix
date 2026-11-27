@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moviepix</title>
+<style>
+:root {
+  --ground: #f6f5f1; --ink: #17171c; --muted: #5c5b66; --line: #dcdad2; --card: #ffffff;
+  --accent: #0e6b5c; --accent-ink: #0a4f44; --accent-soft: #e4f1ee; --warn: #9a3412; --warn-soft: #fdeee6;
+  --check: #ecebe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #15151a; --ink: #ecebf0; --muted: #a9a8b3; --line: #33323b; --card: #1d1d23;
+    --accent: #3fb59e; --accent-ink: #7fd8c6; --accent-soft: #163a33; --warn: #fdba74; --warn-soft: #3b2416;
+    --check: #2a2a31;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1200px; margin: 0 auto; padding: 28px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+h1 { margin: 0; font-size: 32px; letter-spacing: -0.5px; }
+h2 { margin: 0; font-size: 19px; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: 13px; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+.chip.ok { background: var(--accent-soft); border-color: transparent; color: var(--accent-ink); font-weight: 600; }
+.chip.bad { background: var(--warn-soft); border-color: transparent; color: var(--warn); font-weight: 600; }
+.banner { padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); }
+.banner:empty { display: none; }
+.cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
+section { flex: 1 1 320px; min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+section.result { flex: 1.2 1 340px; }
+.drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px; border: 2px dashed var(--line); border-radius: 12px; text-align: center; cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop input { max-width: 100%; font: inherit; font-size: 13px; }
+.row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.pix { image-rendering: pixelated; background-color: var(--card);
+  background-image: conic-gradient(var(--check) 25%, transparent 0 50%, var(--check) 0 75%, transparent 0);
+  border: 1px solid var(--line); display: block; }
+.stage { position: relative; }
+.pivot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 2px solid #d9480f; border-radius: 50%; pointer-events: none; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+button { min-height: 44px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
+button small { display: block; font-size: 12px; opacity: 0.8; }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { cursor: not-allowed; opacity: 0.45; border-style: dashed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 16px; font-weight: 600; text-align: center; }
+button.secondary { color: var(--accent-ink); border-color: var(--accent); text-align: center; font-weight: 600; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.center { display: flex; justify-content: center; overflow-x: auto; padding: 4px; }
+.strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.strip canvas { width: 64px; height: 64px; cursor: pointer; }
+.strip canvas.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.zooms { display: flex; gap: 6px; }
+.zooms button { min-width: 48px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>moviepix</h1>
+      <p class="muted" style="font-size:15px">Give it one standing sprite. Get a walk, slash or spell cycle back. It all runs in your browser.</p>
+    </div>
+    <div class="chips"><span class="chip" id="selftest">Loading the model…</span><span class="chip" id="modelinfo">E1b · 32 px</span></div>
+  </div>
+  <div class="banner" id="error" role="alert"></div>
+
+  <div class="cols">
+    <section aria-labelledby="h1s">
+      <h2 id="h1s">1 · Your sprite</h2>
+      <label class="drop" id="drop">
+        <strong>Drop a PNG here, or choose a file</strong>
+        <span class="muted">One character, standing, facing down. Up to about 64 px tall.</span>
+        <input type="file" id="file" accept="image/png,image/gif,image/webp">
+      </label>
+      <button type="button" class="secondary" id="example">Use the example character</button>
+      <div class="row">
+        <div><p class="muted">Your file</p><canvas class="pix" id="orig" width="1" height="1"></canvas></div>
+        <div><p class="muted">What the model gets</p>
+          <div class="stage"><canvas class="pix" id="placed" width="32" height="32" style="width:128px;height:128px"></canvas><div class="pivot" id="pivot"></div></div>
+        </div>
+      </div>
+      <p id="placeinfo">No sprite yet.</p>
+    </section>
+
+    <section aria-labelledby="h2s">
+      <h2 id="h2s">2 · Action</h2>
+      <div class="grid2" id="actions"></div>
+      <div><p class="muted">Direction</p><div class="grid4" id="dirs"></div></div>
+      <div><p class="muted">Runs on</p><div class="grid2" id="backends"></div></div>
+      <button type="button" class="primary" id="go" disabled>Animate</button>
+      <p class="muted" id="status" aria-live="polite"></p>
+    </section>
+
+    <section class="result" aria-labelledby="h3s">
+      <h2 id="h3s">3 · Result</h2>
+      <div class="center"><canvas class="pix" id="preview" width="32" height="32" style="width:256px;height:256px"></canvas></div>
+      <div class="controls">
+        <button type="button" id="play" style="min-width:96px;text-align:center">Pause</button>
+        <span class="muted" id="framelabel">No frames yet</span>
+        <div class="zooms" id="zooms"></div>
+      </div>
+      <div class="strip" id="strip"></div>
+      <div class="grid2">
+        <button type="button" class="secondary" id="dlpng" disabled>Download PNG sheet</button>
+        <button type="button" class="secondary" id="dlgif" disabled>Download GIF</button>
+      </div>
+    </section>
+  </div>
+
+  <p class="muted">Nothing leaves your browser: no upload, no account, no tracking. Art you make with it is yours.
+    Model: moviepix E1b (research preview, not released yet).</p>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

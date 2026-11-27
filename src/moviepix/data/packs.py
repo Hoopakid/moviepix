@@ -84,6 +84,38 @@ def place(raw: dict, ref_dir: str = "down") -> tuple[dict, int, list] | None:
     return None
 
 
+def pad_even(img: np.ndarray) -> np.ndarray:
+    """Pad [h, w, 4] with transparent pixels at the bottom/right to even sizes (for a 2x shrink)."""
+    h, w = img.shape[:2]
+    return np.pad(img, ((0, h % 2), (0, w % 2), (0, 0)))
+
+
+def place_reference(ref: np.ndarray, size: int = S) -> tuple[np.ndarray, int] | None:
+    """One standing sprite uint8 [h, w, 4] (alpha 0 or 255) -> (canvas [size, size, 4], scale divisor),
+    or None if it does not fit even at half size. The web demo's place.js mirrors this exactly
+    (tests/fixtures/placement.json): feet on the pivot, centred, nudged by up to NUDGE px, 2x shrink
+    only when needed. Note int(round()) rounds halves to even."""
+    pivot = (size // 2, size - 2)
+    for k in (1, 2):
+        r = ref if k == 1 else downscale(pad_even(ref), 2)
+        ys, xs = np.nonzero(r[..., 3])
+        if not len(ys):
+            return None
+        oy = int(pivot[1] - ys.max())
+        ox = int(round(pivot[0] - (xs.min() + xs.max() + 1) / 2))
+        for lo, hi, axis in ((ys.min() + oy, ys.max() + oy, "y"), (xs.min() + ox, xs.max() + ox, "x")):
+            shift = (size - 1 - hi) if hi > size - 1 else (-lo if lo < 0 else 0)
+            if 0 < abs(shift) <= NUDGE and lo + shift >= 0 and hi + shift <= size - 1:
+                oy, ox = (oy + shift, ox) if axis == "y" else (oy, ox + shift)
+        if ys.min() + oy < 0 or ys.max() + oy >= size or xs.min() + ox < 0 or xs.max() + ox >= size:
+            continue
+        canvas = np.zeros((size, size, 4), np.uint8)
+        yy, xx = ys + oy, xs + ox
+        canvas[yy, xx] = r[ys, xs]
+        return canvas, k
+    return None
+
+
 def with_stand(stand: np.ndarray, cycle: np.ndarray) -> np.ndarray:
     """[dirs, ...] standing frames + [dirs, n, ...] cycle -> walk [dirs, 1 + n, ...]."""
     return np.concatenate([stand[:, None], cycle], 1)

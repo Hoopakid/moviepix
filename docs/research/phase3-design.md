@@ -88,3 +88,29 @@ validation examples; ships if exact is within 0.005 of fp32.
 
 All meet local-first.md (fp16 < 20 MB, int8 < 10 MB). fp16 is slower on CPU (no fp16 kernels); it is meant for
 WebGPU. Page default: int8 on WASM, fp16 on WebGPU, fp32 as a fallback; checked in the browser in step 4.
+
+## Step 3 result (2026-11-27): the page (`web/`, local only)
+
+Built as designed: `index.html`, `app.js`, `place.js` (mirrors `data/packs.place_reference`, new), `gif.js` (own
+GIF writer), `serve.py` (127.0.0.1, cross-origin isolation for threads), `README.md`. ONNX Runtime Web **1.31.1**
+(MIT) is fetched by `scripts/fetch_ort_web.py` (sha512-checked, 6 files, git-ignored) instead of living in git.
+
+- **Placement parity:** `tests/fixtures/placement.json` (20 random odd-sized sprites: 10 at 1x, 9 at 2x, 1 refused);
+  `place.js` gives byte-identical canvases (`node web/place.test.mjs`, run by `tests/test_web.py`). It mirrors
+  Python's round-half-to-even. LPC references already sit near the pivot (feet on row 30 for 85%, 31 for 15%;
+  centre x 14.5-17.5), so a user sprite placed at (16, 30) is in the training range.
+- **GIF writer:** round-trips through Pillow exactly (200 colours, transparency, 2x zoom, LZW table resets).
+- **Headless Chrome check** (`#autotest`, throwaway profile, driven over CDP): WASM with `model-int8.onnx`, 4 threads,
+  self-test 99.70% of pixels equal to native onnxruntime (pass mark 99.5%); all 15 actions run on the example.
+  Whole click-to-frames time 50-190 ms for 2-9 frames and 160-240 ms for the 13-frame actions, varying with load.
+- **Exporter change:** the transparent-pixel mask is -1e4 instead of -inf (same softmax result, fp16-safe). Parity is
+  unchanged (99.99997%), and native CPU time fell from ~95 ms to **27 ms** (fp32), 33 ms (fp16), 29 ms (int8);
+  the step 2 timings above were measured with -inf.
+- **Open: WebGPU gives different pixels.** In headless Chrome on this Mac both fp16 and fp32 match only ~87%; 9.7% of
+  pixels differ in alpha, so the network itself computes differently (not the colour decoding). The page turns
+  WebGPU off when its self-test fails and uses WASM, and says so. To find the layer: compare intermediate outputs
+  node by node (later; WASM already meets the targets).
+- Release note: the example character and the self-test reference are LPC validation art (CC-BY-SA/GPL family);
+  Phase 5 decides whether they ship or are replaced by an own sprite.
+
+Step 4 (owner): open the page in Safari and Chrome, see `web/README.md`.

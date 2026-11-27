@@ -9,3 +9,4 @@ __pycache__/
 
 # Phase 3: exported model files stay out of git until release (phase3-design.md)
 web/model/
+web/vendor/

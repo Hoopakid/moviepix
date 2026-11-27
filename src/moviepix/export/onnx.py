@@ -97,7 +97,9 @@ class OneShotExport(nn.Module):
         dec = m.dec_norm(m.dec_unet(x, cond, mid_hook=self._frame_attention))
         q = (m.to_query(dec) + m.pos).flatten(2).transpose(1, 2)  # [T, P, D]
         copy = torch.matmul(q, keys.transpose(0, 1)) * m.scale  # [T, P, P]
-        copy = copy.masked_fill(~valid[None, None, :], float("-inf"))
+        # -1e4, not -inf: WebGPU shaders do not handle infinities, and -1e4 fits in fp16; after the
+        # softmax both give exactly 0 in float32, so the result is the same as PyTorch's -inf.
+        copy = copy.masked_fill(~valid[None, None, :], -1e4)
         special = m.special(dec).flatten(2).transpose(1, 2)  # [T, P, 2]
         new_rgb = torch.sigmoid(m.new_rgb(dec)).flatten(2).transpose(1, 2)  # [T, P, 3]
 
@@ -183,19 +185,27 @@ def _validation(run: Path, n: int):
         yield e["reference"], name, A.DIRECTIONS[e["direction"]], e["target"][:e["n_frames"]]
 
 
+MODEL_FILES = ("model.onnx", "model-fp16.onnx", "model-int8.onnx")
+
+
 def write_selftest(run: Path, out_dir: Path) -> Path:
-    """One validation reference and the frames model.onnx makes for it (the page re-runs it)."""
+    """One validation reference and the frames each model file in out_dir makes for it, by native
+    onnxruntime on the CPU; the page re-runs it with the file it loaded and compares."""
     import onnxruntime as ort
 
     info = json.loads((out_dir / "actions.json").read_text())
-    sess = ort.InferenceSession(str(out_dir / "model.onnx"), providers=["CPUExecutionProvider"])
     ref, _, _, _ = next(_validation(run, 1))
     feeds = onnx_inputs(ref, "walk", "down", info["max_colours"])
-    frames = to_uint8(sess.run(None, feeds)[0])
     b64 = lambda a: base64.b64encode(np.ascontiguousarray(a).tobytes()).decode()  # noqa: E731
+    expected = {}
+    for name in MODEL_FILES:
+        if (out_dir / name).exists():
+            sess = ort.InferenceSession(str(out_dir / name), providers=["CPUExecutionProvider"])
+            expected[name] = b64(to_uint8(sess.run(None, feeds)[0]))
     out = out_dir / "selftest.json"
     out.write_text(json.dumps({"action": "walk", "direction": "down", "size": info["size"],
-                               "reference_rgba": b64(ref), "frames_rgba": b64(frames), "frames": len(frames)}))
+                               "frames": int(len(feeds["frame_ids"])), "reference_rgba": b64(ref),
+                               "expected_rgba": expected}))
     return out
 
 

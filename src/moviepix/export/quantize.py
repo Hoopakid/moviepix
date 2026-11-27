@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from moviepix.export.onnx import _validation, onnx_inputs, to_uint8
+from moviepix.export.onnx import _validation, onnx_inputs, to_uint8, write_selftest
 
 TOLERANCE = 0.005
 
@@ -78,6 +78,9 @@ def main(argv=None) -> None:
     print(f"{'file':12s} {'MB':>5s} {'exact':>7s} {'same':>8s} {'ms':>6s}  ships")
     for k, r in res.items():
         print(f"{k:12s} {r['MB']:5.1f} {r['exact']:7.4f} {r['pixels_same_as_fp32']:8.5f} {r['cpu_ms_median']:6.1f}  {r['ships']}")
+        if not r["ships"]:
+            (a.dir / f"{k}.onnx").unlink()  # the page only offers files that decide like fp32
+    print(write_selftest(a.run, a.dir))
 
 
 if __name__ == "__main__":
