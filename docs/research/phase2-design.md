@@ -198,3 +198,32 @@ seed 2 was not run. E1b stays the reference model. The final test was not scored
 - Open: training-seed noise. Puny walk F1 across earlier runs spans 0.255-0.393 (E1b is the highest), and Knight and
   Ranger span 0.37-0.53, but those runs also differ in config. A second seed of E1b would measure it.
 - Pictures (rows: truth, E1b, E3; first cell is the reference): `docs/research/figures/e3-puny/`.
+
+## Update 2026-11-28 — E1b seed 2: seed noise is small, so E3's Puny drop is real
+
+Run `data/runs/20261127-2041-c32v3_gentle_s2`: E1b's config (`c32v3_gentle`), seed 2, 40000 steps, same code as E1b.
+Script `scripts/run_e1b_seed.sh 2`; log `docs/research/e1b-s2-eval.log`; scores `docs/research/oos-score-e1b-s2.json`.
+
+| | E1b seed 1 | E1b seed 2 | seed 2 - seed 1 (95% interval) | E3 seed 1 - E1b (for scale) |
+|---|---|---|---|---|
+| LPC validation exact (256, 1-shot, colour) | 0.7816 | 0.7833 | +0.002 | -0.006 |
+| In-training validation pixel exact (step 40000) | 0.7886 | 0.7835 | -0.005 | |
+| Puny walk motion F1 | 0.393 | 0.389 | -0.004 [-0.039, +0.024] | **-0.101 [-0.127, -0.071]** |
+| Ninja walk motion F1 | 0.476 | 0.515 | +0.039 [+0.022, +0.057] | +0.042 [+0.030, +0.053] |
+| Antifarea walk motion F1 | 0.566 | 0.581 | +0.015 [+0.009, +0.021] | +0.014 [-0.003, +0.030] |
+| Knight / Ranger walk motion F1 (1 design each) | 0.424 / 0.486 | 0.423 / 0.463 | -0.001 / -0.023 | +0.051 / -0.066 |
+| LPC walk motion F1 | 0.783 | 0.783 | +0.000 [-0.002, +0.002] | -0.009 [-0.012, -0.007] |
+
+Walk exact moved by at most 0.007 on every pack (all intervals include 0). Puny moved 0.181 vs 0.171 (truth 0.236).
+
+What it means:
+- **The E1b recipe is reproducible.** LPC validation and LPC walk motion are the same within 0.002; Puny within 0.004.
+- **E3's losses are real, its gains are not.** E3's Puny drop (-0.101) is far outside the seed-to-seed change, and so
+  is its small LPC motion drop. Its Ninja (+0.042) and Antifarea (+0.014) gains are the same size as seed 2's own
+  change against seed 1, so they are seed noise, not the extra packs. The E3 verdict (fail) stands.
+- **How much one seed can move a score:** up to ~0.04 on a pack's walk motion F1 (Ninja), even with the interval above 0,
+  because the paired interval covers designs, not seeds. Rule for later phases: a pack difference under ~0.05 from one
+  seed per side is not evidence; compare 2 seeds per side or ask for a bigger effect.
+- **Model:** E1b seed 1 (`20261124-1816-c32v3_gentle`) stays the reference and the demo model. Seed 2 is not better on
+  the agreed LPC mark (+0.002 on one validation measure, -0.005 on the other), so there is no reason to switch.
+- Phase 2 is closed. The final test (final32) was not scored; it is still scored once, for the model that is released.
