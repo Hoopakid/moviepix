@@ -53,3 +53,24 @@ reference pixels with the same colour are summed), worth about +0.009 exact on L
 4. Check in Safari and Chrome on this Mac (owner opens the page; I give the steps); record WASM and WebGPU latency.
 
 Out of scope: editing tools (fixed pixels via canvas/known), text prompts, Aseprite/Godot plugins (after release).
+
+## Agreed 2026-11-27
+
+The owner reviewed the prototype canvas (page mock, pipeline, files and steps) and agreed to the design as drafted.
+
+## Step 1 result (2026-11-27): exporter with colour decoding
+
+`moviepix-export data/runs/20261124-1816-c32v3_gentle --out-dir web/model --verify 256` (CPU, 4 threads, ~1 min).
+Writes `model.onnx`, `actions.json` (all 15 actions, pivot, colour limit) and `selftest.json`; `web/model/` is git-ignored.
+
+| Check | Result | Mark |
+|---|---|---|
+| Pixels identical to PyTorch `generate(steps=1, aggregate=True)`, 256 LPC validation examples | 99.99997% (255 of 256 animations identical; one differs by a pixel) | >= 99.9%: pass |
+| Exact on the truth's drawn pixels, ONNX vs PyTorch | 0.7765 vs 0.7765 | same |
+| model.onnx size (fp32) | 17.4 MB | |
+| CPU latency, onnxruntime 4 threads: walk (9 frames) / shoot (13) | 109 ms / 123 ms | < 200 ms: pass |
+| Colours per reference sprite (limit 64): LPC / packs32 / final32 | median 29 / 12 / 11, max 50 / 31 / 20 | all fit |
+
+Colour decoding costs ~45 ms over the per-pixel graph (the [T, P, P] softmax and the [P, K] matmul); still inside the
+target. `tests/test_export.py` checks the same parity on a random small model (with and without the alpha head),
+the colour numbering, and actions.json, so it runs without the checkpoint.
