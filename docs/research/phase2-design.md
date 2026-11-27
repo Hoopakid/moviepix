@@ -197,3 +197,4 @@ seed 2 was not run. E1b stays the reference model. The final test was not scored
 - Not checkpoint noise: step 38000 (best) and 40000 (last) differ by at most 0.004 on every walk.
 - Open: training-seed noise. Puny walk F1 across earlier runs spans 0.255-0.393 (E1b is the highest), and Knight and
   Ranger span 0.37-0.53, but those runs also differ in config. A second seed of E1b would measure it.
+- Pictures (rows: truth, E1b, E3; first cell is the reference): `docs/research/figures/e3-puny/`.
